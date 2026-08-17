@@ -1,176 +1,7 @@
-const propertyImages = {
-  contemporary: "assets/images/hero-residence.webp",
-  apartment: "assets/images/lazimpat-courtyard.webp",
-  hillside: "assets/images/budhanilkantha-home.webp",
-};
-
-const sampleProperties = [
-  {
-    id: "p1",
-    title: "Garden residence in Budhanilkantha",
-    location: "Budhanilkantha · Kathmandu",
-    city: "Kathmandu",
-    type: "House",
-    purpose: "buy",
-    price: 68000000,
-    priceLabel: "रु 6.8 Cr",
-    beds: 5,
-    baths: 4,
-    area: "8.2 aana",
-    updatedHours: 1,
-    image: propertyImages.contemporary,
-    imagePosition: "58% center",
-    description:
-      "A light-filled family residence with planted terraces, warm timber screens and generous indoor-outdoor living at the edge of the valley.",
-  },
-  {
-    id: "p2",
-    title: "Quiet courtyard apartment",
-    location: "Lazimpat · Kathmandu",
-    city: "Kathmandu",
-    type: "Apartment",
-    purpose: "buy",
-    price: 21500000,
-    priceLabel: "रु 2.15 Cr",
-    beds: 3,
-    baths: 2,
-    area: "1,425 sq ft",
-    updatedHours: 2,
-    image: propertyImages.apartment,
-    imagePosition: "65% center",
-    description:
-      "A calm three-bedroom home arranged around a landscaped shared court, within easy reach of central Kathmandu.",
-  },
-  {
-    id: "p3",
-    title: "Brick home above the valley",
-    location: "Tokha · Kathmandu",
-    city: "Kathmandu",
-    type: "House",
-    purpose: "buy",
-    price: 38500000,
-    priceLabel: "रु 3.85 Cr",
-    beds: 4,
-    baths: 3,
-    area: "6.5 aana",
-    updatedHours: 3,
-    image: propertyImages.hillside,
-    imagePosition: "center",
-    description:
-      "Local brick, deep verandas and a garden facing the foothills give this four-bedroom home a quiet sense of place.",
-  },
-  {
-    id: "p4",
-    title: "Sunlit duplex near Sanepa",
-    location: "Sanepa · Lalitpur",
-    city: "Lalitpur",
-    type: "Apartment",
-    purpose: "buy",
-    price: 34000000,
-    priceLabel: "रु 3.4 Cr",
-    beds: 4,
-    baths: 3,
-    area: "2,180 sq ft",
-    updatedHours: 5,
-    image: propertyImages.apartment,
-    imagePosition: "35% center",
-    description:
-      "An expansive two-level apartment with a private terrace, cross ventilation and a restrained material palette.",
-  },
-  {
-    id: "p5",
-    title: "Family villa in Bhaisepati",
-    location: "Bhaisepati · Lalitpur",
-    city: "Lalitpur",
-    type: "House",
-    purpose: "buy",
-    price: 49000000,
-    priceLabel: "रु 4.9 Cr",
-    beds: 5,
-    baths: 4,
-    area: "7 aana",
-    updatedHours: 7,
-    image: propertyImages.contemporary,
-    imagePosition: "70% center",
-    description:
-      "A generous contemporary villa with five bedrooms, a planted roof terrace and a private south-facing garden.",
-  },
-  {
-    id: "p6",
-    title: "Ground-floor studio with garden",
-    location: "Jhamsikhel · Lalitpur",
-    city: "Lalitpur",
-    type: "Apartment",
-    purpose: "rent",
-    price: 85000,
-    priceLabel: "रु 85K / mo",
-    beds: 1,
-    baths: 1,
-    area: "720 sq ft",
-    updatedHours: 4,
-    image: propertyImages.hillside,
-    imagePosition: "30% center",
-    description:
-      "A furnished garden-level studio with a separate work nook and quiet outdoor space in walkable Jhamsikhel.",
-  },
-  {
-    id: "p7",
-    title: "Corner plot near Ring Road",
-    location: "Hemja · Pokhara",
-    city: "Pokhara",
-    type: "Land",
-    purpose: "buy",
-    price: 29500000,
-    priceLabel: "रु 2.95 Cr",
-    beds: null,
-    baths: null,
-    area: "10 aana",
-    updatedHours: 9,
-    image: propertyImages.hillside,
-    imagePosition: "75% center",
-    description:
-      "A road-access corner parcel in an established residential pocket, presented here as sample data for the land-search experience.",
-  },
-  {
-    id: "p8",
-    title: "Lakeside two-bedroom retreat",
-    location: "Lakeside · Pokhara",
-    city: "Pokhara",
-    type: "Apartment",
-    purpose: "rent",
-    price: 65000,
-    priceLabel: "रु 65K / mo",
-    beds: 2,
-    baths: 2,
-    area: "1,080 sq ft",
-    updatedHours: 10,
-    image: propertyImages.apartment,
-    imagePosition: "20% center",
-    description:
-      "A bright two-bedroom apartment with a long balcony and calm garden outlook, a short walk from the lakefront.",
-  },
-  {
-    id: "p9",
-    title: "Flexible street-facing workspace",
-    location: "Narayangarh · Chitwan",
-    city: "Chitwan",
-    type: "Commercial",
-    purpose: "rent",
-    price: 120000,
-    priceLabel: "रु 1.2L / mo",
-    beds: null,
-    baths: 2,
-    area: "1,950 sq ft",
-    updatedHours: 13,
-    image: propertyImages.contemporary,
-    imagePosition: "18% center",
-    description:
-      "A flexible ground-floor commercial space with broad frontage, a service entrance and room for a growing local team.",
-  },
-];
+const fallbackImage = "assets/images/property-image-unavailable.svg";
 
 const state = {
-  properties: sampleProperties,
+  properties: [],
   purpose: "buy",
   location: "all",
   type: "all",
@@ -180,6 +11,10 @@ const state = {
   visible: 6,
   savedOnly: false,
   activePropertyId: null,
+  mapPropertyId: null,
+  loading: true,
+  feedMode: "loading",
+  asOf: null,
   saved: readSaved(),
 };
 
@@ -191,14 +26,15 @@ const searchForm = document.querySelector("[data-search-form]");
 const sortSelect = document.querySelector("[data-sort]");
 const dialog = document.querySelector("[data-property-dialog]");
 const toast = document.querySelector("[data-toast]");
+const mapPanel = document.querySelector("[data-listing-map]");
+const feedBadge = document.querySelector("[data-feed-badge]");
+const sourceStatus = document.querySelector("[data-source-status]");
 let toastTimer;
 
 function readSaved() {
   try {
     const parsed = JSON.parse(localStorage.getItem("nei-saved") || "[]");
-    if (!Array.isArray(parsed)) return new Set();
-    const knownIds = new Set(sampleProperties.map((property) => property.id));
-    return new Set(parsed.filter((id) => typeof id === "string" && knownIds.has(id)));
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
   } catch {
     return new Set();
   }
@@ -208,12 +44,12 @@ function persistSaved() {
   try {
     localStorage.setItem("nei-saved", JSON.stringify([...state.saved]));
   } catch {
-    // The experience still works if storage is unavailable.
+    // Saving remains optional when browser storage is unavailable.
   }
 }
 
 function escapeHTML(value) {
-  return String(value)
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -221,28 +57,98 @@ function escapeHTML(value) {
     .replaceAll("'", "&#039;");
 }
 
+function safeURL(value, fallback = "#") {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  try {
+    const url = new URL(value, window.location.href);
+    if (["http:", "https:"].includes(url.protocol) || url.origin === window.location.origin) return url.href;
+  } catch {
+    // Use the safe fallback below.
+  }
+  return fallback;
+}
+
+function preferredScrollBehavior() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
+function normaliseProperty(property) {
+  const price = property.price == null ? Number.NaN : Number(property.price);
+  const latitude = property.latitude == null ? Number.NaN : Number(property.latitude);
+  const longitude = property.longitude == null ? Number.NaN : Number(property.longitude);
+  const imageLicenseStatus = String(property.imageLicenseStatus || "unconfirmed");
+  const imageCanBeReferenced = !imageLicenseStatus.includes("prohibited");
+  return {
+    id: String(property.id),
+    title: String(property.title || "Untitled property"),
+    location: String(property.location || property.city || "Nepal"),
+    locality: String(property.locality || ""),
+    city: String(property.city || "Nepal"),
+    type: String(property.type || "Property"),
+    purpose: property.purpose === "rent" ? "rent" : "buy",
+    price: Number.isFinite(price) ? price : null,
+    priceBasis: String(property.priceBasis || (property.purpose === "rent" ? "monthly" : "total")),
+    priceLabel: String(property.priceLabel || "Price on request"),
+    beds: property.beds == null ? null : Number(property.beds),
+    baths: property.baths == null ? null : Number(property.baths),
+    area: String(property.area || "Area on source"),
+    image: safeURL(imageCanBeReferenced ? property.image : "", fallbackImage),
+    imageAlt: String(property.imageAlt || `${property.title || "Property"} source photograph`),
+    imageCredit: String(property.imageCredit || "Photograph belongs to the original publisher."),
+    imagePosition: String(property.imagePosition || "center"),
+    description: String(property.description || "Open the original listing for full details."),
+    sourceName: String(property.sourceName || "Original publisher"),
+    sourceUrl: safeURL(property.sourceUrl),
+    contentLicenseStatus: String(property.contentLicenseStatus || "unconfirmed"),
+    imageLicenseStatus,
+    sourceAgeLabel: String(property.sourceAgeLabel || ""),
+    sourcePublishedAt: String(property.sourcePublishedAt || ""),
+    indexedAt: String(property.indexedAt || ""),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    locationPrecision: String(property.locationPrecision || "unknown"),
+    mapQuery: String(property.mapQuery || `${property.location || property.city || "Nepal"}, Nepal`),
+    facts: property.facts && typeof property.facts === "object" ? property.facts : {},
+  };
+}
+
+function recencyValue(property) {
+  const publishedTimestamp = Date.parse(property.sourcePublishedAt);
+  if (Number.isFinite(publishedTimestamp)) return -publishedTimestamp;
+  const label = property.sourceAgeLabel.toLowerCase();
+  const days = Number(label.match(/([\d.]+)\s*day/)?.[1] || 0);
+  const hours = Number(label.match(/([\d.]+)\s*hour/)?.[1] || 0);
+  if (days || hours) return days * 24 + hours;
+  const timestamp = Date.parse(property.indexedAt);
+  return Number.isFinite(timestamp) ? (Date.now() - timestamp) / 3_600_000 : Number.MAX_SAFE_INTEGER;
+}
+
+function comparePriceWithinBasis(first, second, direction) {
+  const basisRank = (basis) => ["total", "monthly"].includes(basis) ? 0 : basis.startsWith("per-") ? 1 : 2;
+  const basisDifference = basisRank(first.priceBasis) - basisRank(second.priceBasis);
+  if (basisDifference) return basisDifference;
+  const firstPrice = first.price ?? (direction > 0 ? Number.MAX_SAFE_INTEGER : -1);
+  const secondPrice = second.price ?? (direction > 0 ? Number.MAX_SAFE_INTEGER : -1);
+  return (firstPrice - secondPrice) * direction;
+}
+
 function filteredProperties() {
-  let results = state.properties.filter((property) => {
+  const results = state.properties.filter((property) => {
     const purposeMatch = state.savedOnly || property.purpose === state.purpose;
     const locationMatch = state.location === "all" || property.city === state.location;
     const typeMatch = state.type === "all" || property.type === state.type;
-    const budgetMatch = state.budget === "all" || property.price <= Number(state.budget);
+    const budgetComparable = ["total", "monthly"].includes(property.priceBasis);
+    const budgetMatch =
+      state.budget === "all" || (budgetComparable && property.price != null && property.price <= Number(state.budget));
     const cardMatch =
-      state.cardFilter === "all" ||
-      property.type === state.cardFilter ||
-      property.purpose === state.cardFilter;
+      state.cardFilter === "all" || property.type === state.cardFilter || property.purpose === state.cardFilter;
     const savedMatch = !state.savedOnly || state.saved.has(property.id);
     return purposeMatch && locationMatch && typeMatch && budgetMatch && cardMatch && savedMatch;
   });
 
-  if (state.sort === "newest") {
-    results.sort((a, b) => a.updatedHours - b.updatedHours);
-  } else if (state.sort === "price-low") {
-    results.sort((a, b) => a.price - b.price);
-  } else if (state.sort === "price-high") {
-    results.sort((a, b) => b.price - a.price);
-  }
-
+  if (state.sort === "newest") results.sort((a, b) => recencyValue(a) - recencyValue(b));
+  if (state.sort === "price-low") results.sort((a, b) => comparePriceWithinBasis(a, b, 1));
+  if (state.sort === "price-high") results.sort((a, b) => comparePriceWithinBasis(a, b, -1));
   return results;
 }
 
@@ -250,49 +156,105 @@ function factsLabel(property) {
   const facts = [];
   if (property.beds) facts.push(`${property.beds} bed`);
   if (property.baths) facts.push(`${property.baths} bath`);
-  facts.push(property.area);
+  if (property.area) facts.push(property.area);
   return facts.join(" · ");
+}
+
+function formatIndexedAt(value) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Indexed recently";
+  return `Indexed ${new Intl.DateTimeFormat("en-NP", { dateStyle: "medium", timeStyle: "short" }).format(timestamp)}`;
 }
 
 function propertyCard(property, index) {
   const saved = state.saved.has(property.id);
+  const sourceAge = property.sourceAgeLabel ? ` · Source age at index ${escapeHTML(property.sourceAgeLabel)}` : "";
+  const imagePolicy = property.imageLicenseStatus.includes("unconfirmed")
+    ? '<span class="property-image-policy">Source preview · rights unconfirmed</span>'
+    : property.imageLicenseStatus.includes("owner-permission-attested")
+      ? '<span class="property-image-policy">Owner-authorized prototype</span>'
+    : "";
+  const mapAction = hasMapLocation(property)
+    ? `<button type="button" data-map-property="${escapeHTML(property.id)}">Show on map</button>`
+    : `<a href="${escapeHTML(googleMapsURL(property))}" target="_blank" rel="noopener noreferrer">Find named area ↗</a>`;
   return `
     <article class="property-card" style="animation-delay:${Math.min(index * 70, 350)}ms">
       <div class="property-image">
-        <img src="${escapeHTML(property.image)}" alt="" loading="lazy" style="object-position:${escapeHTML(property.imagePosition)}" />
+        <img src="${escapeHTML(property.image)}" alt="${escapeHTML(property.imageAlt)}" loading="lazy"
+          referrerpolicy="no-referrer" style="object-position:${escapeHTML(property.imagePosition)}" />
         <span class="property-badge">For ${property.purpose === "buy" ? "sale" : "rent"} · ${escapeHTML(property.type)}</span>
-        <button class="property-save ${saved ? "is-saved" : ""}" type="button" data-save-property="${escapeHTML(property.id)}" aria-label="${
-          saved ? "Remove" : "Save"
-        } ${escapeHTML(property.title)}" aria-pressed="${saved}">${saved ? "♥" : "♡"}</button>
+        ${imagePolicy}
+        <button class="property-save ${saved ? "is-saved" : ""}" type="button"
+          data-save-property="${escapeHTML(property.id)}" aria-label="${saved ? "Remove" : "Save"} ${escapeHTML(property.title)}"
+          aria-pressed="${saved}">${saved ? "♥" : "♡"}</button>
       </div>
       <div class="property-body">
-        <p class="property-location">${escapeHTML(property.location)} · sample timestamp ${property.updatedHours}h</p>
-        <h3>
-          <button class="property-open" type="button" data-open-property="${escapeHTML(property.id)}">
-            ${escapeHTML(property.title)}
-          </button>
-        </h3>
+        <p class="property-location">${escapeHTML(property.location)}${sourceAge}</p>
+        <h3><button class="property-open" type="button" data-open-property="${escapeHTML(property.id)}">${escapeHTML(property.title)}</button></h3>
         <div class="property-price-row">
           <p class="property-price">${escapeHTML(property.priceLabel)}</p>
           <p class="property-facts">${escapeHTML(factsLabel(property))}</p>
+        </div>
+        <div class="property-source-row">
+          <a href="${escapeHTML(property.sourceUrl)}" target="_blank" rel="noopener noreferrer"
+            aria-label="Open ${escapeHTML(property.title)} on ${escapeHTML(property.sourceName)}">
+            ${escapeHTML(property.sourceName)} <span aria-hidden="true">↗</span>
+          </a>
+          ${mapAction}
         </div>
       </div>
     </article>`;
 }
 
+function addImageFallbacks(root = document) {
+  root.querySelectorAll(".property-image img, [data-dialog-image]").forEach((image) => {
+    image.addEventListener(
+      "error",
+      () => {
+        if (!image.src.endsWith(fallbackImage)) {
+          image.src = fallbackImage;
+          image.alt = "Source listing image unavailable";
+        }
+      },
+      { once: true },
+    );
+  });
+}
+
+function renderLoading() {
+  grid.innerHTML = Array.from(
+    { length: 3 },
+    () => '<article class="property-card property-card-loading" aria-hidden="true"><div></div><span></span><span></span></article>',
+  ).join("");
+  emptyState.hidden = true;
+  loadMoreButton.hidden = true;
+  mapPanel.hidden = true;
+}
+
 function renderProperties() {
+  if (state.loading) {
+    renderLoading();
+    return;
+  }
   if (!state.savedOnly) syncPurposeButtons();
   const filtered = filteredProperties();
   const visible = filtered.slice(0, state.visible);
   grid.innerHTML = visible.map(propertyCard).join("");
+  addImageFallbacks(grid);
   emptyState.hidden = filtered.length !== 0;
   loadMoreButton.hidden = filtered.length <= state.visible;
 
   const purposeLabel = state.savedOnly ? "across all purposes" : state.purpose === "buy" ? "for sale" : "for rent";
-  const feedLabel = state.savedOnly ? "saved" : "sample";
+  const feedLabel = state.savedOnly ? "saved" : "indexed";
   resultSummary.textContent = `${filtered.length} ${feedLabel} ${filtered.length === 1 ? "property" : "properties"} ${purposeLabel}`;
   sortSelect.disabled = state.savedOnly;
   updateSavedCount();
+
+  if (visible.length) {
+    const mapped = visible.find((property) => property.id === state.mapPropertyId) || visible.find(hasMapLocation);
+    if (mapped) updateMap(mapped);
+    else mapPanel.hidden = true;
+  } else mapPanel.hidden = true;
 }
 
 function updateSavedCount() {
@@ -309,12 +271,38 @@ function syncPurposeButtons() {
   });
 }
 
+function syncBudgetOptions() {
+  const select = searchForm.elements.budget;
+  const monthly = state.purpose === "rent";
+  const options = monthly
+    ? [
+        ["50000", "Up to रु 50,000 / mo"],
+        ["100000", "Up to रु 1 Lakh / mo"],
+        ["200000", "Up to रु 2 Lakh / mo"],
+        ["500000", "Up to रु 5 Lakh / mo"],
+      ]
+    : [
+        ["20000000", "Up to रु 2 Cr"],
+        ["40000000", "Up to रु 4 Cr"],
+        ["60000000", "Up to रु 6 Cr"],
+        ["100000000", "Up to रु 10 Cr"],
+      ];
+  document.querySelector("[data-budget-label]").textContent = monthly ? "Budget · monthly" : "Budget · total";
+  select.innerHTML = '<option value="all">Any budget</option>' + options
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join("");
+  if (![...select.options].some((option) => option.value === state.budget)) state.budget = "all";
+  select.value = state.budget;
+}
+
 function updatePurpose(nextPurpose) {
   state.purpose = nextPurpose;
+  state.budget = "all";
   state.cardFilter = "all";
   state.savedOnly = false;
   state.visible = 6;
   syncPurposeButtons();
+  syncBudgetOptions();
   resetFilterChips();
   renderProperties();
 }
@@ -357,6 +345,60 @@ function toggleSave(id, { restoreCardFocus = false } = {}) {
   if (state.activePropertyId === id && dialog.open) updateDialogSaveButton(property);
 }
 
+function mapPrecisionLabel(property) {
+  if (property.locationPrecision === "exact") return "Coordinates supplied by source";
+  if (property.locationPrecision === "unknown") return "Named-place Google Maps search";
+  return `Approximate ${property.locationPrecision} pin`;
+}
+
+function googleMapsURL(property) {
+  const query = property.locationPrecision === "exact" && hasMapPoint(property)
+    ? `${property.latitude},${property.longitude}`
+    : property.mapQuery;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function hasMapPoint(property) {
+  return Number.isFinite(property.latitude) && Number.isFinite(property.longitude);
+}
+
+function hasMapLocation(property) {
+  return hasMapPoint(property) || Boolean(property.mapQuery.trim());
+}
+
+function googleMapsEmbedURL(property) {
+  const query = encodeURIComponent(hasMapPoint(property) ? `${property.latitude},${property.longitude}` : property.mapQuery);
+  const zoom = property.locationPrecision === "exact" ? 16 : 14;
+  return `https://maps.google.com/maps?q=${query}&z=${zoom}&hl=en&output=embed`;
+}
+
+function updateMap(property, { scroll = false } = {}) {
+  if (!hasMapLocation(property)) {
+    mapPanel.hidden = true;
+    return;
+  }
+  const changed = state.mapPropertyId !== property.id;
+  state.mapPropertyId = property.id;
+  mapPanel.hidden = false;
+  mapPanel.querySelector("[data-map-title]").textContent = property.title;
+  mapPanel.querySelector("[data-map-precision]").textContent = mapPrecisionLabel(property);
+  mapPanel.querySelector("[data-map-description]").textContent =
+    property.locationPrecision === "exact"
+      ? `${property.location}. Confirm the position with the original publisher before visiting.`
+      : property.locationPrecision === "unknown"
+        ? `${property.location}. Google Maps is resolving the place name supplied by the publisher; it is not an exact property pin.`
+      : `${property.location}. This pin marks the named area, not the house or parcel's exact address.`;
+  mapPanel.querySelector("[data-google-map]").href = googleMapsURL(property);
+  mapPanel.querySelector("[data-map-source]").href = property.sourceUrl;
+  const frame = mapPanel.querySelector("[data-map-frame]");
+  if (changed || !frame.src) frame.src = googleMapsEmbedURL(property);
+  frame.title = `${mapPrecisionLabel(property)} for ${property.title}`;
+  if (scroll) {
+    mapPanel.querySelector("[data-map-title]").focus({ preventScroll: true });
+    mapPanel.scrollIntoView({ behavior: preferredScrollBehavior(), block: "center" });
+  }
+}
+
 function openProperty(id) {
   const property = state.properties.find((item) => item.id === id);
   if (!property) return;
@@ -364,28 +406,48 @@ function openProperty(id) {
 
   const image = dialog.querySelector("[data-dialog-image]");
   image.src = property.image;
-  image.alt = property.title;
+  image.alt = property.imageAlt;
+  image.referrerPolicy = "no-referrer";
   image.style.objectPosition = property.imagePosition;
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = fallbackImage;
+    image.alt = `Source image unavailable for ${property.title}`;
+  };
   dialog.querySelector("[data-dialog-badge]").textContent = `For ${property.purpose === "buy" ? "sale" : "rent"}`;
   dialog.querySelector("[data-dialog-location]").textContent = `${property.location} · ${property.type}`;
   dialog.querySelector("[data-dialog-title]").textContent = property.title;
   dialog.querySelector("[data-dialog-price]").textContent = property.priceLabel;
   dialog.querySelector("[data-dialog-description]").textContent = property.description;
+  dialog.querySelector("[data-dialog-source-name]").textContent = property.sourceName;
+  const imagePolicy = property.imageLicenseStatus.includes("unconfirmed")
+    ? " Source-hosted preview rights are unconfirmed; use the original publisher for authorized photos."
+    : property.imageLicenseStatus.includes("owner-permission-attested")
+      ? " The project owner reports publisher permission for this private prototype."
+    : "";
+  dialog.querySelector("[data-dialog-source-copy]").textContent =
+    `${formatIndexedAt(property.indexedAt)}. ${property.imageCredit}${imagePolicy}`;
+  dialog.querySelector("[data-source-action]").href = property.sourceUrl;
+  dialog.querySelector("[data-dialog-map-link]").href = googleMapsURL(property);
+  dialog.querySelector("[data-dialog-map-note]").textContent =
+    `${mapPrecisionLabel(property)} — use the original listing to arrange a visit and confirm the address.`;
 
   const facts = [];
   if (property.beds) facts.push(`${property.beds} bedrooms`);
   if (property.baths) facts.push(`${property.baths} bathrooms`);
-  facts.push(property.area);
-  dialog.querySelector("[data-dialog-facts]").innerHTML = facts
-    .map((fact) => `<span>${escapeHTML(fact)}</span>`)
-    .join("");
+  if (property.area) facts.push(property.area);
+  if (property.facts.road_access) {
+    const unit = String(property.facts.road_access_unit || "").replaceAll("_", " ").toLowerCase();
+    facts.push(`${property.facts.road_access} ${unit} road`.replace(/\s+/g, " "));
+  }
+  if (property.facts.facing) facts.push(`Faces ${String(property.facts.facing).replaceAll("_", " ").toLowerCase()}`);
+  if (property.facts.floors) facts.push(`${property.facts.floors} floors`);
+  if (property.facts.property_code) facts.push(`Source code ${property.facts.property_code}`);
+  dialog.querySelector("[data-dialog-facts]").innerHTML = facts.map((fact) => `<span>${escapeHTML(fact)}</span>`).join("");
   updateDialogSaveButton(property);
 
-  if (typeof dialog.showModal === "function") {
-    dialog.showModal();
-  } else {
-    dialog.setAttribute("open", "");
-  }
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
   document.body.classList.add("dialog-open");
 }
 
@@ -407,6 +469,153 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("is-visible");
   toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 3200);
+}
+
+function populateLocationOptions() {
+  const select = searchForm.elements.location;
+  const cities = [...new Set(state.properties.map((property) => property.city).filter(Boolean))].sort();
+  select.innerHTML = '<option value="all">Across Nepal</option>' + cities
+    .map((city) => `<option value="${escapeHTML(city)}">${escapeHTML(city)}</option>`)
+    .join("");
+}
+
+function hydrateHero() {
+  const property = state.properties.find((item) => item.type === "House" && item.image !== fallbackImage) || state.properties[0];
+  if (!property) return;
+  const image = document.querySelector("[data-hero-image]");
+  image.src = property.image;
+  image.alt = property.imageAlt;
+  image.referrerPolicy = "no-referrer";
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = fallbackImage;
+    image.alt = `Source image unavailable for ${property.title}`;
+  };
+  const previewPolicy = property.imageLicenseStatus.includes("unconfirmed") ? " · rights unconfirmed" : "";
+  const authorizedPolicy = property.imageLicenseStatus.includes("owner-permission-attested")
+    ? " · owner-authorized prototype"
+    : previewPolicy;
+  document.querySelector("[data-hero-source]").textContent =
+    `${property.sourceName} · source-hosted preview${authorizedPolicy}`;
+  document.querySelector("[data-hero-title]").textContent = property.title;
+  if (hasMapPoint(property)) {
+    document.querySelector("[data-hero-lat]").textContent = `${property.latitude.toFixed(3)}° N`;
+    document.querySelector("[data-hero-lng]").textContent = `${property.longitude.toFixed(3)}° E · area`;
+  }
+  const button = document.querySelector("[data-hero-open]");
+  button.disabled = false;
+  button.dataset.propertyId = property.id;
+}
+
+async function fetchJSON(url, timeout = 9000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
+    if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+    return await response.json();
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function fetchDatabaseListings() {
+  const pageSize = 250;
+  const firstPage = await fetchJSON(`/api/listings?limit=${pageSize}&offset=0`);
+  if (!Array.isArray(firstPage.items)) return firstPage;
+  if (firstPage.mode === "database-snapshot") return firstPage;
+
+  const items = [...firstPage.items];
+  const seen = new Set(items.map((item) => String(item.id)));
+  const total = Number(firstPage.total);
+  let offset = items.length;
+  while (Number.isFinite(total) && items.length < total) {
+    const nextPage = await fetchJSON(`/api/listings?limit=${pageSize}&offset=${offset}`);
+    if (!Array.isArray(nextPage.items) || !nextPage.items.length) break;
+    offset += nextPage.items.length;
+    const unseen = nextPage.items.filter((item) => !seen.has(String(item.id)));
+    unseen.forEach((item) => seen.add(String(item.id)));
+    if (!unseen.length) break;
+    items.push(...unseen);
+  }
+  return { ...firstPage, items };
+}
+
+function showHeroDataState(source, title) {
+  const image = document.querySelector("[data-hero-image]");
+  image.src = fallbackImage;
+  image.alt = "";
+  document.querySelector("[data-hero-source]").textContent = source;
+  document.querySelector("[data-hero-title]").textContent = title;
+  document.querySelector("[data-hero-lat]").textContent = "Area latitude";
+  document.querySelector("[data-hero-lng]").textContent = "Area longitude";
+  const button = document.querySelector("[data-hero-open]");
+  button.disabled = true;
+  delete button.dataset.propertyId;
+}
+
+function feedIsStale(value, maxHours = 8) {
+  const timestamp = Date.parse(value);
+  return !Number.isFinite(timestamp) || Date.now() - timestamp > maxHours * 3_600_000;
+}
+
+async function loadListings() {
+  let payload;
+  let mode = "live-database";
+  try {
+    payload = await fetchDatabaseListings();
+    mode = payload.mode || mode;
+  } catch (apiError) {
+    try {
+      payload = await fetchJSON("data/listings.json");
+      mode = "database-snapshot";
+    } catch (snapshotError) {
+      console.error("Property data could not be loaded", { apiError, snapshotError });
+      state.loading = false;
+      state.feedMode = "unavailable";
+      feedBadge.textContent = "Database unavailable";
+      sourceStatus.textContent = "Source connection unavailable";
+      resultSummary.textContent = "Property data could not be loaded";
+      emptyState.querySelector("span").textContent = "The listing database is offline.";
+      emptyState.querySelector("p").textContent = "Start the FastAPI service or refresh the generated data snapshot.";
+      renderProperties();
+      resultSummary.textContent = "Property data could not be loaded";
+      showHeroDataState("Property feed unavailable", "The database is offline.");
+      return;
+    }
+  }
+
+  if (!Array.isArray(payload.items) || !payload.items.length) {
+    state.loading = false;
+    feedBadge.textContent = "No indexed listings";
+    emptyState.querySelector("span").textContent = "The current index is empty.";
+    emptyState.querySelector("p").textContent = "Refresh the source adapter to fetch the latest property window.";
+    renderProperties();
+    resultSummary.textContent = "The database is connected but currently empty";
+    showHeroDataState("No current source records", "The property index is empty.");
+    return;
+  }
+
+  state.properties = payload.items.map(normaliseProperty);
+  state.saved = new Set([...state.saved].filter((id) => state.properties.some((property) => property.id === id)));
+  state.feedMode = mode;
+  state.asOf = payload.asOf || null;
+  state.loading = false;
+  persistSaved();
+  populateLocationOptions();
+  hydrateHero();
+  const sourceCount = new Set(state.properties.map((property) => property.sourceName)).size;
+  const stale = payload.freshness?.state === "stale" || feedIsStale(state.asOf);
+  feedBadge.textContent = stale
+    ? mode === "live-database" ? "Database refresh overdue" : "Snapshot · refresh overdue"
+    : mode === "live-database" ? "Live database" : "Latest database snapshot";
+  const indexedLabel = state.asOf ? formatIndexedAt(state.asOf) : "Index time unavailable";
+  const catalog = Array.isArray(payload.sources) ? payload.sources : [];
+  const authorizedCount = catalog.filter((source) => ["active", "authorized-pending-adapter"].includes(source.status)).length;
+  const pendingCount = catalog.filter((source) => source.status === "authorized-pending-adapter").length;
+  const catalogLabel = authorizedCount ? `${sourceCount} of ${authorizedCount}` : String(sourceCount);
+  sourceStatus.textContent = `${catalogLabel} owner-authorized ${authorizedCount === 1 ? "source" : "sources"} indexed · ${indexedLabel}${pendingCount ? ` · ${pendingCount} adapters validating` : ""}`;
+  renderProperties();
 }
 
 document.querySelectorAll("[data-purpose]").forEach((button) => {
@@ -431,7 +640,7 @@ searchForm.addEventListener("submit", (event) => {
   state.visible = 6;
   resetFilterChips();
   renderProperties();
-  document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
+  document.querySelector("#listings").scrollIntoView({ behavior: preferredScrollBehavior() });
 });
 
 document.querySelectorAll("[data-filter]").forEach((button) => {
@@ -443,6 +652,8 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
     state.visible = 6;
     if (button.dataset.filter === "rent") {
       state.purpose = "rent";
+      state.budget = "all";
+      syncBudgetOptions();
     }
     document.querySelectorAll("[data-filter]").forEach((item) => {
       const active = item === button;
@@ -466,12 +677,14 @@ document.querySelectorAll("[data-location]").forEach((button) => {
     state.cardFilter = "all";
     state.savedOnly = false;
     state.visible = 6;
-    searchForm.elements.location.value = state.location;
+    searchForm.elements.location.value = [...searchForm.elements.location.options].some(
+      (option) => option.value === state.location,
+    ) ? state.location : "all";
     searchForm.elements.type.value = "all";
     searchForm.elements.budget.value = "all";
     resetFilterChips();
     renderProperties();
-    document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
+    document.querySelector("#listings").scrollIntoView({ behavior: preferredScrollBehavior() });
   });
 });
 
@@ -481,14 +694,18 @@ grid.addEventListener("click", (event) => {
     toggleSave(saveButton.dataset.saveProperty, { restoreCardFocus: true });
     return;
   }
+  const mapButton = event.target.closest("[data-map-property]");
+  if (mapButton) {
+    const property = state.properties.find((item) => item.id === mapButton.dataset.mapProperty);
+    if (property) updateMap(property, { scroll: true });
+    return;
+  }
   const openButton = event.target.closest("[data-open-property]");
   if (openButton) openProperty(openButton.dataset.openProperty);
 });
 
-document.querySelectorAll("[data-open-property]").forEach((button) => {
-  if (!button.closest("[data-property-grid]")) {
-    button.addEventListener("click", () => openProperty(button.dataset.openProperty));
-  }
+document.querySelector("[data-hero-open]").addEventListener("click", (event) => {
+  if (event.currentTarget.dataset.propertyId) openProperty(event.currentTarget.dataset.propertyId);
 });
 
 loadMoreButton.addEventListener("click", () => {
@@ -522,7 +739,7 @@ document.querySelectorAll("[data-open-saved]").forEach((button) => {
     });
     closeMenu();
     renderProperties();
-    document.querySelector("#listings").scrollIntoView({ behavior: "smooth" });
+    document.querySelector("#listings").scrollIntoView({ behavior: preferredScrollBehavior() });
   });
 });
 
@@ -534,18 +751,15 @@ dialog.addEventListener("close", () => document.body.classList.remove("dialog-op
 dialog.querySelector("[data-dialog-save]").addEventListener("click", () => {
   if (state.activePropertyId) toggleSave(state.activePropertyId);
 });
-dialog.querySelector("[data-source-action]").addEventListener("click", () => {
-  showToast("This is sample data. The original-source handoff arrives with the listing API.");
-});
 
 document.querySelector("[data-interest-form]").addEventListener("submit", (event) => {
   event.preventDefault();
   event.currentTarget.reset();
-  showToast("Thanks—this prototype does not send or store your email.");
+  showToast("Thanks—this pilot does not send or store your email.");
 });
 
 document.querySelectorAll("[data-info-action]").forEach((button) => {
-  button.addEventListener("click", () => showToast(`${button.dataset.infoAction} content is planned for the next phase.`));
+  button.addEventListener("click", () => showToast(`${button.dataset.infoAction} details are being prepared.`));
 });
 
 document.querySelectorAll("[data-accordion] .process-item > button").forEach((button) => {
@@ -573,11 +787,19 @@ document.querySelectorAll("[data-accordion] .process-item > button").forEach((bu
 
 const menuButton = document.querySelector("[data-menu-button]");
 const mobileMenu = document.querySelector("[data-mobile-menu]");
+const menuBackgroundNodes = document.querySelectorAll(
+  "main, .site-footer, .site-header > .brand, .site-header > .desktop-nav, .site-header .saved-button",
+);
+
+function setMenuBackgroundInert(inert) {
+  menuBackgroundNodes.forEach((node) => { node.inert = inert; });
+}
 
 function closeMenu({ restoreFocus = false } = {}) {
   mobileMenu.classList.remove("is-open");
   mobileMenu.setAttribute("aria-hidden", "true");
   mobileMenu.inert = true;
+  setMenuBackgroundInert(false);
   menuButton.setAttribute("aria-expanded", "false");
   menuButton.setAttribute("aria-label", "Open menu");
   document.body.classList.remove("menu-open");
@@ -586,15 +808,16 @@ function closeMenu({ restoreFocus = false } = {}) {
 
 menuButton.addEventListener("click", () => {
   const open = menuButton.getAttribute("aria-expanded") === "true";
-  if (open) {
-    closeMenu();
-  } else {
+  if (open) closeMenu();
+  else {
     mobileMenu.classList.add("is-open");
     mobileMenu.setAttribute("aria-hidden", "false");
     mobileMenu.inert = false;
+    setMenuBackgroundInert(true);
     menuButton.setAttribute("aria-expanded", "true");
     menuButton.setAttribute("aria-label", "Close menu");
     document.body.classList.add("menu-open");
+    mobileMenu.querySelector("a, button").focus();
   }
 });
 
@@ -611,6 +834,18 @@ window.addEventListener(
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && mobileMenu.classList.contains("is-open")) closeMenu({ restoreFocus: true });
+  if (event.key === "Tab" && mobileMenu.classList.contains("is-open")) {
+    const focusable = [menuButton, ...mobileMenu.querySelectorAll("a, button")];
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 });
 
 const revealNodes = document.querySelectorAll("[data-reveal]");
@@ -630,9 +865,7 @@ if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-mot
     node.classList.add("reveal-ready");
     revealObserver.observe(node);
   });
-} else {
-  revealNodes.forEach((node) => node.classList.add("is-visible"));
-}
+} else revealNodes.forEach((node) => node.classList.add("is-visible"));
 
 const heroVisual = document.querySelector("[data-hero-visual]");
 if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -648,4 +881,5 @@ if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
 }
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
-renderProperties();
+renderLoading();
+loadListings();

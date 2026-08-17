@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Nepal Estate Index is a refined property discovery prototype for homes, apartments, and land across Nepal."
+      content="Search source-attributed homes and land across Nepal with a normalized listing database and approximate locality maps."
     />
     <meta name="theme-color" content="#363c46" />
     <title>Nepal Estate Index — Find your place</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-    <link rel="preload" href="assets/images/hero-residence.webp" as="image" fetchpriority="high" />
+    <link rel="preload" href="assets/images/property-image-unavailable.svg" as="image" fetchpriority="high" />
     <link rel="stylesheet" href="styles.css" />
     <script src="script.js" defer></script>
   </head>
@@ -70,11 +70,11 @@
       <main id="main-content">
         <section class="hero" id="top" aria-labelledby="hero-title">
           <div class="hero-copy">
-            <p class="eyebrow"><span></span> Concept prototype · An independent property index for Nepal</p>
+            <p class="eyebrow"><span></span> Live data pilot · An independent property index for Nepal</p>
             <h1 id="hero-title">A better<br />map of <em>home.</em></h1>
             <p class="hero-intro">
-              A concept for bringing homes, land and commercial spaces into one calm, considered view—built
-              for the people who move Nepal.
+              Current, source-attributed homes and land in one calm view—with every listing linked back to its
+              original publisher.
             </p>
           </div>
 
@@ -83,23 +83,25 @@
             <div class="hero-orbit hero-orbit-two" aria-hidden="true"></div>
             <div class="hero-image-wrap">
               <img
-                src="assets/images/hero-residence.webp"
-                alt="Contemporary stone and timber residence with planted terraces"
+                src="assets/images/property-image-unavailable.svg"
+                alt=""
                 width="1536"
                 height="1024"
                 fetchpriority="high"
+                referrerpolicy="no-referrer"
+                data-hero-image
               />
             </div>
             <div class="hero-property-note">
               <div>
-                <span>Sample property · 01</span>
-                <strong>Budhanilkantha, Kathmandu</strong>
+                <span data-hero-source>Loading source-attributed listings</span>
+                <strong data-hero-title>Connecting to the property database…</strong>
               </div>
-              <button type="button" aria-label="View sample featured residence" data-open-property="p1">↗</button>
+              <button type="button" aria-label="View featured indexed property" data-hero-open disabled>↗</button>
             </div>
             <div class="hero-index-note" aria-hidden="true">
-              <span>27.73° N</span>
-              <span>85.36° E</span>
+              <span data-hero-lat>Area latitude</span>
+              <span data-hero-lng>Area longitude</span>
             </div>
           </div>
 
@@ -130,7 +132,7 @@
               </select>
             </label>
             <label class="search-field">
-              <span>Budget</span>
+              <span data-budget-label>Budget · total</span>
               <select name="budget">
                 <option value="all">Any budget</option>
                 <option value="20000000">Up to रु 2 Cr</option>
@@ -149,8 +151,8 @@
           </div>
         </section>
 
-        <section class="source-ribbon" aria-label="Planned property sources">
-          <p>Designed to index</p>
+        <section class="source-ribbon" aria-label="Property source status">
+          <p data-source-status>Connecting to owner-authorized sources</p>
           <ul class="source-track">
             <li>Nepal Homes</li>
             <li>Real Estate in Nepal</li>
@@ -184,15 +186,15 @@
             <button class="location-card location-card-main" type="button" data-location="Kathmandu" data-reveal>
               <span class="location-number">01 / Kathmandu</span>
               <strong>Valley<br />living</strong>
-              <span class="location-meta">Explore sample properties <i aria-hidden="true">↗</i></span>
+              <span class="location-meta">Explore indexed properties <i aria-hidden="true">↗</i></span>
             </button>
             <button class="location-card location-card-pokhara" type="button" data-location="Pokhara" data-reveal>
               <span class="location-number">02 / Pokhara</span>
               <strong>Space to<br />breathe</strong>
-              <span class="location-meta">Explore sample properties <i aria-hidden="true">↗</i></span>
+              <span class="location-meta">Explore indexed properties <i aria-hidden="true">↗</i></span>
             </button>
             <div class="location-card location-card-stat" data-reveal>
-              <span class="location-number">Planned refresh</span>
+              <span class="location-number">Database refresh</span>
               <strong>04<small>h</small></strong>
               <p>A current index, not another forgotten directory.</p>
             </div>
@@ -206,7 +208,7 @@
           </div>
           <div class="listings-heading">
             <div data-reveal>
-              <span class="prototype-pill">Sample feed</span>
+              <span class="prototype-pill" data-feed-badge>Loading database</span>
               <h2 id="listings-title">Places worth<br />a closer <em>look.</em></h2>
             </div>
             <div class="listing-toolbar" data-reveal>
@@ -220,16 +222,41 @@
               <label class="sort-control">
                 <span>Sort</span>
                 <select data-sort aria-label="Sort properties">
-                  <option value="featured">Curated</option>
-                  <option value="newest">Sample recency</option>
-                  <option value="price-low">Price · low to high</option>
-                  <option value="price-high">Price · high to low</option>
+                  <option value="featured">Source order</option>
+                  <option value="newest">Newest indexed</option>
+                  <option value="price-low">Price · low within basis</option>
+                  <option value="price-high">Price · high within basis</option>
                 </select>
               </label>
             </div>
           </div>
 
-          <p class="result-summary" data-result-summary aria-live="polite" tabindex="-1">Showing sample properties</p>
+          <p class="result-summary" data-result-summary aria-live="polite" tabindex="-1">Loading indexed properties…</p>
+          <section class="listing-map" data-listing-map aria-labelledby="listing-map-title" hidden>
+            <div class="listing-map-frame">
+              <iframe
+                title="Approximate property locality map"
+                loading="lazy"
+                referrerpolicy="strict-origin-when-cross-origin"
+                data-map-frame
+              ></iframe>
+            </div>
+            <div class="listing-map-copy">
+              <span data-map-precision>Approximate locality</span>
+              <h3 id="listing-map-title" data-map-title tabindex="-1">Property map</h3>
+              <p data-map-description>
+                Pins use the locality named by the source unless exact coordinates are explicitly supplied.
+              </p>
+              <div class="listing-map-actions">
+                <a href="#" target="_blank" rel="noopener noreferrer" data-google-map>
+                  Open in Google Maps <span aria-hidden="true">↗</span>
+                </a>
+                <a href="#" target="_blank" rel="noopener noreferrer" data-map-source>
+                  Original listing <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </div>
+          </section>
           <div class="property-grid" data-property-grid></div>
           <div class="listing-empty" data-listing-empty hidden>
             <span>Nothing here yet.</span>
@@ -260,7 +287,7 @@
               </div>
               <div>
                 <h3>Fresh by default</h3>
-                <p>Scheduled source checks are planned to keep availability and prices honest.</p>
+                <p>Permitted sources are checked on a four-hour schedule and each record keeps its fetch time.</p>
               </div>
             </article>
             <article class="benefit-card benefit-card-match" data-reveal>
@@ -272,7 +299,7 @@
               </div>
               <div>
                 <h3>One listing, not five</h3>
-                <p>Matching logic is planned to group repeats while preserving every source.</p>
+                <p>The normalized database preserves source IDs and links, ready for duplicate grouping.</p>
               </div>
             </article>
             <article class="benefit-card benefit-card-local" data-reveal>
@@ -282,7 +309,7 @@
               </div>
               <div>
                 <h3>Local units understood</h3>
-                <p>Planned filters will compare aana, ropani, kattha, square feet and square metres.</p>
+                <p>Source measurements are preserved clearly, from aana and ropani to square feet.</p>
               </div>
             </article>
           </div>
@@ -291,15 +318,15 @@
         <section class="process section-pad" id="how-it-works" aria-labelledby="process-title">
           <div class="section-label" data-reveal>
             <span>04</span>
-            <p>The planned data journey</p>
+            <p>The live data journey</p>
           </div>
           <div class="process-layout">
             <div class="process-sticky" data-reveal>
-              <span class="prototype-pill prototype-pill-dark">Product roadmap</span>
+              <span class="prototype-pill prototype-pill-dark">Working pipeline</span>
               <h2 id="process-title">From scattered<br />pages to one <em>index.</em></h2>
               <p>
-                The frontend is ready for a normalized listing API. The ingestion system below is the next
-                implementation phase.
+                A source-aware FastAPI service normalizes permitted listings into SQLite, then serves this
+                interface and its map view.
               </p>
             </div>
             <div class="process-list" data-accordion>
@@ -320,8 +347,8 @@
                 </button>
                 <div class="process-answer" id="process-panel-2" aria-hidden="true" inert>
                   <p>
-                    Addresses, prices and land measurements are normalized, then likely duplicates are grouped
-                    without erasing their source history.
+                    Addresses, property types and price bases are normalized without erasing source identity.
+                    Cross-source duplicate matching is planned after enough refresh history is available.
                   </p>
                 </div>
               </article>
@@ -381,7 +408,7 @@
         </div>
         <div class="footer-bottom">
           <span>© <span data-year></span> Nepal Estate Index</span>
-          <span>Concept prototype · Kathmandu, Nepal</span>
+          <span>Live data pilot · Kathmandu, Nepal</span>
           <a href="#top">Back to top ↑</a>
         </div>
       </footer>
@@ -391,7 +418,7 @@
       <div class="dialog-panel">
         <button class="dialog-close" type="button" aria-label="Close property details" data-dialog-close>×</button>
         <div class="dialog-image-wrap">
-          <img data-dialog-image src="assets/images/hero-residence.webp" alt="" />
+          <img data-dialog-image src="assets/images/property-image-unavailable.svg" alt="" referrerpolicy="no-referrer" />
           <span data-dialog-badge>For sale</span>
         </div>
         <div class="dialog-content">
@@ -401,13 +428,17 @@
           <div class="dialog-facts" data-dialog-facts></div>
           <p class="dialog-description" data-dialog-description></p>
           <div class="dialog-source">
-            <span>Sample listing</span>
-            <p>Source handoff and freshness metadata will appear here when the listing API is connected.</p>
+            <span data-dialog-source-name>Original publisher</span>
+            <p data-dialog-source-copy>Listing details remain controlled by the original publisher.</p>
           </div>
+          <p class="dialog-map-note" data-dialog-map-note></p>
           <div class="dialog-actions">
-            <button class="dialog-primary" type="button" data-source-action>
-              About source handoff <span aria-hidden="true">↗</span>
-            </button>
+            <a class="dialog-primary" href="#" target="_blank" rel="noopener noreferrer" data-source-action>
+              View original listing <span aria-hidden="true">↗</span>
+            </a>
+            <a class="dialog-map-action" href="#" target="_blank" rel="noopener noreferrer" data-dialog-map-link>
+              Google Maps <span aria-hidden="true">↗</span>
+            </a>
             <button class="dialog-secondary" type="button" data-dialog-save>Save property</button>
           </div>
         </div>

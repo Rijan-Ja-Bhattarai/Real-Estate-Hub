@@ -981,11 +981,123 @@ button.location-card:hover {
   margin-top: 4.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.listing-map {
+  display: grid;
+  min-height: 26rem;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.55fr);
+  margin-top: 1.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.listing-map-frame {
+  position: relative;
+  min-height: 26rem;
+  overflow: hidden;
+  background: #d7e5e0;
+}
+
+.listing-map-frame::before,
+.listing-map-frame::after {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.listing-map-frame::before {
+  width: 3.4rem;
+  height: 3.4rem;
+  border: 0.9rem solid rgba(54, 60, 70, 0.18);
+  border-radius: 50% 50% 50% 0;
+  background: var(--ink);
+  box-shadow: 0 0 0 1rem rgba(255, 255, 255, 0.42);
+  transform: translate(-50%, -64%) rotate(-45deg);
+}
+
+.listing-map-frame::after {
+  width: 9rem;
+  height: 9rem;
+  border: 1px solid rgba(54, 60, 70, 0.2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3rem rgba(255, 255, 255, 0.12), 0 0 0 6rem rgba(54, 60, 70, 0.05);
+}
+
+.listing-map-frame iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 26rem;
+  border: 0;
+  filter: saturate(0.75) contrast(0.95);
+}
+
+.listing-map-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2rem, 4vw, 3.5rem);
+}
+
+.listing-map-copy > span {
+  color: var(--slate);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.listing-map-copy h3 {
+  margin-top: 1rem;
+  font-size: clamp(2rem, 3.3vw, 3.8rem);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 0.96;
+}
+
+.listing-map-copy > p {
+  margin-top: 1.25rem;
+  color: var(--slate);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.listing-map-actions {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 2rem;
+}
+
+.listing-map-actions a {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(54, 60, 70, 0.25);
+  border-radius: 99px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.listing-map-actions a:first-child {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--white);
 }
 
 .property-grid {
@@ -1065,6 +1177,22 @@ button.location-card:hover {
   backdrop-filter: blur(8px);
 }
 
+.property-image-policy {
+  position: absolute;
+  z-index: 2;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 99px;
+  background: rgba(54, 60, 70, 0.9);
+  color: var(--white);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
 .property-save {
   position: absolute;
   z-index: 4;
@@ -1139,6 +1267,68 @@ button.location-card:hover {
   color: rgba(255, 255, 255, 0.76);
   font-size: 0.68rem;
   text-align: right;
+}
+
+.property-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.1rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.property-source-row a,
+.property-source-row button {
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 0.25rem;
+}
+
+.property-card-loading {
+  min-height: 30rem;
+  padding: 1rem;
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+.property-card-loading div,
+.property-card-loading span {
+  display: block;
+  border-radius: 1rem;
+  background: linear-gradient(100deg, #505864 25%, #5d6571 45%, #505864 65%);
+  background-size: 220% 100%;
+  animation: loading-shimmer 1.5s ease-in-out infinite;
+}
+
+.property-card-loading div {
+  height: 20rem;
+}
+
+.property-card-loading span {
+  width: 80%;
+  height: 1.2rem;
+  margin-top: 1.4rem;
+}
+
+.property-card-loading span:last-child {
+  width: 52%;
+  margin-top: 0.7rem;
+}
+
+@keyframes loading-shimmer {
+  to {
+    background-position: -220% 0;
+  }
 }
 
 .listing-empty {
@@ -1796,15 +1986,26 @@ button.location-card:hover {
   line-height: 1.5;
 }
 
+.dialog-map-note {
+  margin-top: 1rem;
+  color: var(--slate);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
 .dialog-actions {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 0.6rem;
   margin-top: 1.7rem;
 }
 
-.dialog-actions button {
+.dialog-actions button,
+.dialog-actions a {
+  display: flex;
   min-height: 3.2rem;
+  align-items: center;
+  justify-content: center;
   padding: 0 1rem;
   border-radius: 99px;
   font-size: 0.65rem;
@@ -1825,6 +2026,12 @@ button.location-card:hover {
 .dialog-secondary {
   border: 1px solid var(--line);
   background: transparent;
+}
+
+.dialog-map-action {
+  border: 1px solid var(--line);
+  background: var(--mint);
+  color: var(--ink);
 }
 
 .toast {
@@ -2036,6 +2243,15 @@ button.location-card:hover {
     justify-content: start;
   }
 
+  .listing-map {
+    grid-template-columns: 1fr;
+  }
+
+  .listing-map-frame,
+  .listing-map-frame iframe {
+    min-height: 22rem;
+  }
+
   .benefit-grid {
     grid-template-columns: 1fr;
   }
@@ -2165,6 +2381,20 @@ button.location-card:hover {
   .property-card:nth-child(5n + 1) .property-image,
   .property-card:nth-child(5n + 2) .property-image {
     aspect-ratio: 1.16;
+  }
+
+  .listing-map-frame,
+  .listing-map-frame iframe {
+    min-height: 18rem;
+  }
+
+  .listing-map-copy {
+    padding: 1.5rem;
+  }
+
+  .property-source-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .listing-toolbar {
