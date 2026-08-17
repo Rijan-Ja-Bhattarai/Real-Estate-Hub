@@ -10,11 +10,17 @@ await mkdir(outputDirectory, { recursive: true });
 for (const file of ["index.html", "styles.css", "script.js"]) {
   await cp(new URL(file, sourceRoot), new URL(file, outputDirectory));
 }
+await mkdir(new URL("data/", outputDirectory), { recursive: true });
+await cp(new URL("data/listings.json", sourceRoot), new URL("data/listings.json", outputDirectory));
 await mkdir(new URL("assets/images/", outputDirectory), { recursive: true });
 await cp(new URL("assets/favicon.svg", sourceRoot), new URL("assets/favicon.svg", outputDirectory));
 for (const image of ["hero-residence.webp", "lazimpat-courtyard.webp", "budhanilkantha-home.webp"]) {
   await cp(new URL(`assets/images/${image}`, sourceRoot), new URL(`assets/images/${image}`, outputDirectory));
 }
+await cp(
+  new URL("assets/images/property-image-unavailable.svg", sourceRoot),
+  new URL("assets/images/property-image-unavailable.svg", outputDirectory),
+);
 
 const hostingConfig = new URL(".openai/hosting.json", sourceRoot);
 try {
@@ -33,10 +39,28 @@ const workerAssets = [
   { route: "/styles.css", file: "styles.css", type: "text/css; charset=utf-8", cache: "no-cache" },
   { route: "/script.js", file: "script.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   {
+    route: "/data/listings.json",
+    file: "data/listings.json",
+    type: "application/json; charset=utf-8",
+    cache: "public, max-age=900, stale-while-revalidate=3600",
+  },
+  {
+    route: "/api/listings",
+    file: "data/listings.json",
+    type: "application/json; charset=utf-8",
+    cache: "public, max-age=900, stale-while-revalidate=3600",
+  },
+  {
     route: "/assets/favicon.svg",
     file: "assets/favicon.svg",
     type: "image/svg+xml; charset=utf-8",
     cache: "public, max-age=86400",
+  },
+  {
+    route: "/assets/images/property-image-unavailable.svg",
+    file: "assets/images/property-image-unavailable.svg",
+    type: "image/svg+xml; charset=utf-8",
+    cache: "public, max-age=31536000, immutable",
   },
   {
     route: "/assets/images/hero-residence.webp",

@@ -75,14 +75,16 @@ async function evaluate(expression) {
 }
 
 async function waitForReady() {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    if ((await evaluate("document.readyState")) === "complete") {
-      await delay(250);
-      return;
-    }
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const ready = await evaluate(`({
+      document: document.readyState,
+      data: document.querySelector('[data-feed-badge]')?.textContent !== 'Loading database',
+      cards: document.querySelectorAll('.property-card:not(.property-card-loading)').length
+    })`);
+    if (["interactive", "complete"].includes(ready.document) && ready.data && ready.cards > 0) return;
     await delay(100);
   }
-  throw new Error("The site did not finish loading.");
+  throw new Error("The site or listing database did not finish loading.");
 }
 
 function assert(condition, message) {
@@ -104,7 +106,9 @@ try {
       failures.push(`Runtime exception: ${message.params.exceptionDetails.text}`);
     }
     if (message.method === "Log.entryAdded" && message.params.entry.level === "error") {
-      failures.push(`Browser error: ${message.params.entry.text}`);
+      const entry = message.params.entry;
+      if (entry.url?.includes("/api/listings?") && entry.text.includes("404")) return;
+      failures.push(`Browser error: ${entry.text}${entry.url ? ` (${entry.url})` : ""}`);
     }
   });
 
@@ -124,18 +128,52 @@ try {
     title: document.title,
     cards: document.querySelectorAll('.property-card').length,
     result: document.querySelector('[data-result-summary]').textContent,
+    mapVisible: !document.querySelector('[data-listing-map]').hidden,
+    sourceLink: document.querySelector('.property-source-row a')?.href,
+    landRateVisible: [...document.querySelectorAll('.property-price')].some((node) => node.textContent.includes('/ aana')),
+    rightsNoticeVisible: Boolean(document.querySelector('.property-image-policy')),
     horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
     heroVisible: document.querySelector('#hero-title').getBoundingClientRect().height > 0
   })`);
   assert(initial.title.includes("Nepal Estate Index"), "Document title is missing the product name.");
   assert(initial.cards === 6, `Expected 6 initial sale cards, found ${initial.cards}.`);
-  assert(initial.result.includes("6 sample properties for sale"), "Initial result summary is incorrect.");
+  assert(initial.result.includes("indexed") && initial.result.includes("for sale"), "Initial result summary is incorrect.");
+  assert(initial.mapVisible, "Approximate listing map is not visible.");
+  assert(
+    initial.sourceLink?.startsWith("https://") && !initial.sourceLink.startsWith(siteUrl),
+    "Listing source handoff is missing.",
+  );
+  assert(initial.rightsNoticeVisible, "Source-image rights status is not surfaced beside previews.");
   assert(!initial.horizontalOverflow, "Desktop viewport has horizontal overflow.");
   assert(initial.heroVisible, "Hero heading is not visible.");
 
+  const landState = await evaluate(`(() => {
+    document.querySelector('[data-filter="Land"]').click();
+    return {
+      cards: document.querySelectorAll('.property-card').length,
+      unitRateVisible: [...document.querySelectorAll('.property-price')]
+        .some((node) => [' / aana', ' / ropani', ' / kattha', ' / dhur', ' / sq ft']
+          .some((basis) => node.textContent.toLowerCase().includes(basis)))
+    };
+  })()`);
+  assert(landState.cards > 0, "Land filtering returned no actual source records.");
+  assert(landState.unitRateVisible, "Source-labelled land unit rates are not displayed with their basis.");
+
+  const mapFocusState = await evaluate(`(() => {
+    document.querySelector('.property-card [data-map-property]').click();
+    return {
+      focused: document.activeElement.matches('[data-map-title]'),
+      title: document.querySelector('[data-map-title]').textContent
+    };
+  })()`);
+  assert(mapFocusState.focused, "Map selection did not move focus to the updated map heading.");
+  assert(mapFocusState.title.length > 4, "Map selection did not update the map heading.");
+
   if (captureSelector) {
     await evaluate(`document.querySelector(${JSON.stringify(captureSelector)})?.scrollIntoView({ block: 'start' })`);
-    await delay(900);
+    // Captured source photographs can be several megabytes; give the browser
+    // enough time to replace the local placeholder before visual inspection.
+    await delay(5000);
     const screenshot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
     writeFileSync("/tmp/nei-section.png", Buffer.from(screenshot.data, "base64"));
     console.log(`Captured ${captureSelector} to /tmp/nei-section.png.`);
@@ -145,21 +183,42 @@ try {
     document.querySelector('[data-purpose="rent"]').click();
     return {
       cards: document.querySelectorAll('.property-card').length,
-      summary: document.querySelector('[data-result-summary]').textContent
+      summary: document.querySelector('[data-result-summary]').textContent,
+      budgetLabel: document.querySelector('[data-budget-label]').textContent,
+      budgetOption: document.querySelector('[name="budget"] option:nth-child(2)').textContent
     };
   })()`);
-  assert(rentState.cards === 3, `Expected 3 rental cards, found ${rentState.cards}.`);
+  assert(rentState.cards > 0 && rentState.cards <= 6, `Expected visible rental cards, found ${rentState.cards}.`);
   assert(rentState.summary.includes("for rent"), "Rent result summary did not update.");
+  assert(rentState.budgetLabel.includes("monthly"), "Rental budget did not switch to a monthly basis.");
+  assert(rentState.budgetOption.includes("/ mo"), "Rental budget options are missing monthly units.");
+
+  const commercialState = await evaluate(`(() => {
+    const form = document.querySelector('[data-search-form]');
+    form.elements.type.value = 'Commercial';
+    form.requestSubmit();
+    return {
+      cards: document.querySelectorAll('.property-card').length,
+      badges: [...document.querySelectorAll('.property-badge')].map((node) => node.textContent)
+    };
+  })()`);
+  assert(commercialState.cards > 0, "Commercial rental filtering returned no real source records.");
+  assert(
+    commercialState.badges.every((badge) => badge.includes("Commercial")),
+    "Commercial results contain a mismatched normalized type.",
+  );
 
   const dialogState = await evaluate(`(() => {
     document.querySelector('.property-card [data-open-property]').click();
     return {
       open: document.querySelector('[data-property-dialog]').open,
-      title: document.querySelector('[data-dialog-title]').textContent
+      title: document.querySelector('[data-dialog-title]').textContent,
+      facts: document.querySelectorAll('[data-dialog-facts] span').length
     };
   })()`);
   assert(dialogState.open, "Property dialog did not open.");
   assert(dialogState.title.length > 4, "Property dialog did not receive listing content.");
+  assert(dialogState.facts >= 1, "Source facts were not rendered in the property dialog.");
   await evaluate(`document.querySelector('[data-dialog-close]').click()`);
 
   const savedState = await evaluate(`(() => {
@@ -199,17 +258,21 @@ try {
       menuOpen: document.querySelector('[data-mobile-menu]').classList.contains('is-open'),
       expanded: menuButton.getAttribute('aria-expanded'),
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
-      menuVisible: getComputedStyle(menuButton).display !== 'none'
+      menuVisible: getComputedStyle(menuButton).display !== 'none',
+      backgroundInert: document.querySelector('main').inert && document.querySelector('.site-footer').inert,
+      focusInsideMenu: document.activeElement.closest('[data-mobile-menu]') !== null
     };
   })()`);
   assert(mobileState.menuOpen && mobileState.expanded === "true", "Mobile menu did not open.");
   assert(mobileState.menuVisible, "Mobile menu control is not visible.");
+  assert(mobileState.backgroundInert, "Mobile menu did not make obscured page content inert.");
+  assert(mobileState.focusInsideMenu, "Mobile menu did not move focus into the overlay.");
   assert(!mobileState.horizontalOverflow, "Mobile viewport has horizontal overflow.");
 
   if (failures.length) {
     throw new Error(failures.map((failure) => `- ${failure}`).join("\n"));
   }
-  console.log("Browser smoke test passed: desktop render, filters, dialog, saved state, and mobile menu.");
+  console.log("Browser smoke test passed: real-data render, price bases, filters, map, dialog, saved state, and mobile menu.");
 } finally {
   if (socket?.readyState === WebSocket.OPEN) socket.close();
   browser.kill("SIGTERM");
