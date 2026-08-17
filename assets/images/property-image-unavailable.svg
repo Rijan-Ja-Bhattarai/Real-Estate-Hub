@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1050" role="img" aria-labelledby="title description">
+  <title id="title">Property image unavailable</title>
+  <desc id="description">A neutral placeholder used when an original publisher's property photograph cannot be loaded.</desc>
+  <rect width="1600" height="1050" fill="#E0EEE9"/>
+  <path d="M0 760 440 360l265 236 180-160 715 614H0Z" fill="#CFB6A8" opacity=".54"/>
+  <path d="m500 660 300-255 300 255v270H500Z" fill="none" stroke="#363C46" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M690 930V715h220v215M445 705l355-300 355 300" fill="none" stroke="#363C46" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="800" y="190" fill="#363C46" font-family="Arial, Helvetica, sans-serif" font-size="48" text-anchor="middle">SOURCE IMAGE UNAVAILABLE</text>
+</svg>
