@@ -1,0 +1,8 @@
+# Reference and source artwork are kept locally but are not part of the deployed site.
+*.mp4
+assets/images/*.png
+
+# Local build and OS artifacts.
+dist/
+.DS_Store
+

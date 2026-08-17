@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Nepal Estate Index is a refined property discovery prototype for homes, apartments, and land across Nepal."
+    />
+    <meta name="theme-color" content="#363c46" />
+    <title>Nepal Estate Index — Find your place</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="assets/images/hero-residence.webp" as="image" fetchpriority="high" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <div class="page-shell">
+      <header class="site-header" data-header>
+        <a class="brand" href="#top" aria-label="Nepal Estate Index, home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span class="brand-name">Nepal Estate<br />Index</span>
+        </a>
+
+        <nav class="desktop-nav" aria-label="Primary navigation">
+          <a href="#listings" data-purpose-link="buy">Buy</a>
+          <a href="#listings" data-purpose-link="rent">Rent</a>
+          <a href="#locations">Locations</a>
+          <a href="#for-agents">For agents</a>
+        </nav>
+
+        <div class="header-actions">
+          <button class="saved-button" type="button" data-open-saved>
+            Saved <span class="saved-count" data-saved-count>0</span>
+          </button>
+          <button
+            class="menu-button"
+            type="button"
+            aria-label="Open menu"
+            aria-expanded="false"
+            aria-controls="mobile-menu"
+            data-menu-button
+          >
+            <span></span><span></span>
+          </button>
+        </div>
+
+        <nav
+          class="mobile-menu"
+          id="mobile-menu"
+          aria-label="Mobile navigation"
+          aria-hidden="true"
+          inert
+          data-mobile-menu
+        >
+          <a href="#listings" data-purpose-link="buy">Buy properties <span aria-hidden="true">↗</span></a>
+          <a href="#listings" data-purpose-link="rent">Rent a home <span aria-hidden="true">↗</span></a>
+          <a href="#locations">Browse locations <span aria-hidden="true">↗</span></a>
+          <a href="#for-agents">For agents <span aria-hidden="true">↗</span></a>
+          <button class="mobile-saved-link" type="button" data-open-saved>
+            Saved properties <span data-saved-count>0</span>
+          </button>
+        </nav>
+      </header>
+
+      <main id="main-content">
+        <section class="hero" id="top" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Concept prototype · An independent property index for Nepal</p>
+            <h1 id="hero-title">A better<br />map of <em>home.</em></h1>
+            <p class="hero-intro">
+              A concept for bringing homes, land and commercial spaces into one calm, considered view—built
+              for the people who move Nepal.
+            </p>
+          </div>
+
+          <div class="hero-visual" data-hero-visual>
+            <div class="hero-orbit hero-orbit-one" aria-hidden="true"></div>
+            <div class="hero-orbit hero-orbit-two" aria-hidden="true"></div>
+            <div class="hero-image-wrap">
+              <img
+                src="assets/images/hero-residence.webp"
+                alt="Contemporary stone and timber residence with planted terraces"
+                width="1536"
+                height="1024"
+                fetchpriority="high"
+              />
+            </div>
+            <div class="hero-property-note">
+              <div>
+                <span>Sample property · 01</span>
+                <strong>Budhanilkantha, Kathmandu</strong>
+              </div>
+              <button type="button" aria-label="View sample featured residence" data-open-property="p1">↗</button>
+            </div>
+            <div class="hero-index-note" aria-hidden="true">
+              <span>27.73° N</span>
+              <span>85.36° E</span>
+            </div>
+          </div>
+
+          <form class="search-panel" data-search-form>
+            <div class="purpose-tabs" role="group" aria-label="Listing purpose">
+              <button class="is-active" type="button" data-purpose="buy" aria-pressed="true">Buy</button>
+              <button type="button" data-purpose="rent" aria-pressed="false">Rent</button>
+            </div>
+            <label class="search-field">
+              <span>Where</span>
+              <select name="location">
+                <option value="all">Across Nepal</option>
+                <option value="Kathmandu">Kathmandu</option>
+                <option value="Lalitpur">Lalitpur</option>
+                <option value="Bhaktapur">Bhaktapur</option>
+                <option value="Pokhara">Pokhara</option>
+                <option value="Chitwan">Chitwan</option>
+              </select>
+            </label>
+            <label class="search-field">
+              <span>Property</span>
+              <select name="type">
+                <option value="all">Any type</option>
+                <option value="House">House</option>
+                <option value="Apartment">Apartment</option>
+                <option value="Land">Land</option>
+                <option value="Commercial">Commercial</option>
+              </select>
+            </label>
+            <label class="search-field">
+              <span>Budget</span>
+              <select name="budget">
+                <option value="all">Any budget</option>
+                <option value="20000000">Up to रु 2 Cr</option>
+                <option value="40000000">Up to रु 4 Cr</option>
+                <option value="60000000">Up to रु 6 Cr</option>
+                <option value="100000000">Up to रु 10 Cr</option>
+              </select>
+            </label>
+            <button class="search-submit" type="submit">
+              <span>Explore properties</span><span aria-hidden="true">↗</span>
+            </button>
+          </form>
+
+          <div class="hero-scroll-note" aria-hidden="true">
+            <span>Scroll to explore</span><i></i>
+          </div>
+        </section>
+
+        <section class="source-ribbon" aria-label="Planned property sources">
+          <p>Designed to index</p>
+          <ul class="source-track">
+            <li>Nepal Homes</li>
+            <li>Real Estate in Nepal</li>
+            <li>Ghar Ghaderi</li>
+            <li>Nepal Property Bazaar</li>
+            <li>Property in Nepal</li>
+            <li>Ghar Sansar Nepal</li>
+            <li>Kantipur Real Estate</li>
+            <li>Ghar Bazar</li>
+            <li>Lalpurja Nepal</li>
+          </ul>
+        </section>
+
+        <section class="editorial-intro section-pad" id="locations" aria-labelledby="intro-title">
+          <div class="section-label" data-reveal>
+            <span>01</span>
+            <p>One considered view</p>
+          </div>
+          <div class="intro-grid">
+            <h2 id="intro-title" data-reveal>Property search<br />with less <em>noise.</em></h2>
+            <div class="intro-copy" data-reveal>
+              <p>
+                The same home can appear in five places with five different stories. Nepal Estate Index is
+                designed to bring those fragments together—cleanly, transparently and in local terms.
+              </p>
+              <a class="text-link" href="#how-it-works">See how the index works <span aria-hidden="true">↘</span></a>
+            </div>
+          </div>
+
+          <div class="location-bento">
+            <button class="location-card location-card-main" type="button" data-location="Kathmandu" data-reveal>
+              <span class="location-number">01 / Kathmandu</span>
+              <strong>Valley<br />living</strong>
+              <span class="location-meta">Explore sample properties <i aria-hidden="true">↗</i></span>
+            </button>
+            <button class="location-card location-card-pokhara" type="button" data-location="Pokhara" data-reveal>
+              <span class="location-number">02 / Pokhara</span>
+              <strong>Space to<br />breathe</strong>
+              <span class="location-meta">Explore sample properties <i aria-hidden="true">↗</i></span>
+            </button>
+            <div class="location-card location-card-stat" data-reveal>
+              <span class="location-number">Planned refresh</span>
+              <strong>04<small>h</small></strong>
+              <p>A current index, not another forgotten directory.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="listings-section section-pad" id="listings" aria-labelledby="listings-title">
+          <div class="section-label section-label-light" data-reveal>
+            <span>02</span>
+            <p>Curated discovery</p>
+          </div>
+          <div class="listings-heading">
+            <div data-reveal>
+              <span class="prototype-pill">Sample feed</span>
+              <h2 id="listings-title">Places worth<br />a closer <em>look.</em></h2>
+            </div>
+            <div class="listing-toolbar" data-reveal>
+              <div class="filter-chips" role="group" aria-label="Filter listings">
+                <button class="is-active" type="button" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" data-filter="House" aria-pressed="false">Homes</button>
+                <button type="button" data-filter="Apartment" aria-pressed="false">Apartments</button>
+                <button type="button" data-filter="Land" aria-pressed="false">Land</button>
+                <button type="button" data-filter="rent" aria-pressed="false">For rent</button>
+              </div>
+              <label class="sort-control">
+                <span>Sort</span>
+                <select data-sort aria-label="Sort properties">
+                  <option value="featured">Curated</option>
+                  <option value="newest">Sample recency</option>
+                  <option value="price-low">Price · low to high</option>
+                  <option value="price-high">Price · high to low</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <p class="result-summary" data-result-summary aria-live="polite" tabindex="-1">Showing sample properties</p>
+          <div class="property-grid" data-property-grid></div>
+          <div class="listing-empty" data-listing-empty hidden>
+            <span>Nothing here yet.</span>
+            <p>Try a broader location, type or budget.</p>
+            <button type="button" data-clear-filters>Clear filters</button>
+          </div>
+          <button class="load-more" type="button" data-load-more>
+            <span>Show more properties</span><span aria-hidden="true">↓</span>
+          </button>
+        </section>
+
+        <section class="benefits section-pad" id="for-agents" aria-labelledby="benefits-title">
+          <div class="section-label" data-reveal>
+            <span>03</span>
+            <p>Built for better decisions</p>
+          </div>
+          <div class="benefits-heading">
+            <h2 id="benefits-title" data-reveal>Context for every<br /><em>conversation.</em></h2>
+            <p data-reveal>
+              A simple research layer for agents and buyers—made around how property actually moves in Nepal.
+            </p>
+          </div>
+          <div class="benefit-grid">
+            <article class="benefit-card benefit-card-fresh" data-reveal>
+              <span class="benefit-index">01</span>
+              <div class="refresh-dial" aria-hidden="true">
+                <span>Every</span><strong>04</strong><small>hours</small>
+              </div>
+              <div>
+                <h3>Fresh by default</h3>
+                <p>Scheduled source checks are planned to keep availability and prices honest.</p>
+              </div>
+            </article>
+            <article class="benefit-card benefit-card-match" data-reveal>
+              <span class="benefit-index">02</span>
+              <div class="match-visual" aria-hidden="true">
+                <span>01</span><span>01</span><span>01</span>
+                <i></i>
+                <strong>01</strong>
+              </div>
+              <div>
+                <h3>One listing, not five</h3>
+                <p>Matching logic is planned to group repeats while preserving every source.</p>
+              </div>
+            </article>
+            <article class="benefit-card benefit-card-local" data-reveal>
+              <span class="benefit-index">03</span>
+              <div class="unit-stack" aria-hidden="true">
+                <span>4 aana</span><span>1 ropani</span><span>2 kattha</span>
+              </div>
+              <div>
+                <h3>Local units understood</h3>
+                <p>Planned filters will compare aana, ropani, kattha, square feet and square metres.</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="process section-pad" id="how-it-works" aria-labelledby="process-title">
+          <div class="section-label" data-reveal>
+            <span>04</span>
+            <p>The planned data journey</p>
+          </div>
+          <div class="process-layout">
+            <div class="process-sticky" data-reveal>
+              <span class="prototype-pill prototype-pill-dark">Product roadmap</span>
+              <h2 id="process-title">From scattered<br />pages to one <em>index.</em></h2>
+              <p>
+                The frontend is ready for a normalized listing API. The ingestion system below is the next
+                implementation phase.
+              </p>
+            </div>
+            <div class="process-list" data-accordion>
+              <article class="process-item is-open" data-reveal>
+                <button type="button" aria-expanded="true" aria-controls="process-panel-1">
+                  <span>01</span><strong>Source responsibly</strong><i aria-hidden="true">−</i>
+                </button>
+                <div class="process-answer" id="process-panel-1" aria-hidden="false">
+                  <p>
+                    Source-specific adapters check permitted pages on a schedule, with visible attribution and
+                    a direct path back to the original listing.
+                  </p>
+                </div>
+              </article>
+              <article class="process-item" data-reveal>
+                <button type="button" aria-expanded="false" aria-controls="process-panel-2">
+                  <span>02</span><strong>Clean and match</strong><i aria-hidden="true">+</i>
+                </button>
+                <div class="process-answer" id="process-panel-2" aria-hidden="true" inert>
+                  <p>
+                    Addresses, prices and land measurements are normalized, then likely duplicates are grouped
+                    without erasing their source history.
+                  </p>
+                </div>
+              </article>
+              <article class="process-item" data-reveal>
+                <button type="button" aria-expanded="false" aria-controls="process-panel-3">
+                  <span>03</span><strong>Serve what changed</strong><i aria-hidden="true">+</i>
+                </button>
+                <div class="process-answer" id="process-panel-3" aria-hidden="true" inert>
+                  <p>
+                    A compact read-only API sends the newest version of each property to this interface, along
+                    with freshness and source metadata.
+                  </p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="agent-cta section-pad" aria-labelledby="cta-title">
+          <div class="cta-card" data-reveal>
+            <div class="cta-grid-mark" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <p class="eyebrow eyebrow-light"><span></span> For Nepal's property professionals</p>
+            <h2 id="cta-title">Spend less time<br />searching. More time<br /><em>advising.</em></h2>
+            <form class="interest-form" data-interest-form>
+              <label>
+                <span class="sr-only">Work email</span>
+                <input type="email" name="email" autocomplete="email" placeholder="Your work email" required />
+              </label>
+              <button type="submit">Preview request flow <span aria-hidden="true">↗</span></button>
+            </form>
+            <p class="form-note">Prototype only · no email is sent or stored.</p>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="footer-top">
+          <a class="footer-brand" href="#top">Nepal<br />Estate<br /><em>Index.</em></a>
+          <div class="footer-contact">
+            <span>Start a conversation</span>
+            <button type="button" data-info-action="Contact">Contact route coming soon</button>
+          </div>
+          <nav aria-label="Footer navigation">
+            <span>Explore</span>
+            <a href="#listings">Properties</a>
+            <a href="#locations">Locations</a>
+            <a href="#for-agents">For agents</a>
+          </nav>
+          <nav aria-label="Project information">
+            <span>Project</span>
+            <button type="button" data-info-action="About this prototype">About</button>
+            <button type="button" data-info-action="Source standards">Source standards</button>
+            <button type="button" data-info-action="Privacy">Privacy</button>
+          </nav>
+        </div>
+        <div class="footer-bottom">
+          <span>© <span data-year></span> Nepal Estate Index</span>
+          <span>Concept prototype · Kathmandu, Nepal</span>
+          <a href="#top">Back to top ↑</a>
+        </div>
+      </footer>
+    </div>
+
+    <dialog class="property-dialog" data-property-dialog aria-labelledby="dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" aria-label="Close property details" data-dialog-close>×</button>
+        <div class="dialog-image-wrap">
+          <img data-dialog-image src="assets/images/hero-residence.webp" alt="" />
+          <span data-dialog-badge>For sale</span>
+        </div>
+        <div class="dialog-content">
+          <p class="dialog-kicker" data-dialog-location>Kathmandu</p>
+          <h2 id="dialog-title" data-dialog-title>Featured property</h2>
+          <p class="dialog-price" data-dialog-price>रु 0</p>
+          <div class="dialog-facts" data-dialog-facts></div>
+          <p class="dialog-description" data-dialog-description></p>
+          <div class="dialog-source">
+            <span>Sample listing</span>
+            <p>Source handoff and freshness metadata will appear here when the listing API is connected.</p>
+          </div>
+          <div class="dialog-actions">
+            <button class="dialog-primary" type="button" data-source-action>
+              About source handoff <span aria-hidden="true">↗</span>
+            </button>
+            <button class="dialog-secondary" type="button" data-dialog-save>Save property</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast" role="status" aria-live="polite" aria-atomic="true" data-toast></div>
+  </body>
+</html>
