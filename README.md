@@ -1,28 +1,68 @@
 # Nepal Estate Index
 
-A dependency-free HTML, CSS, and JavaScript concept for a Nepal-focused property index. The interface adapts the editorial, rounded-card language of the supplied video and uses the palette from `Plan.md`.
+A Nepal-focused property search pilot with a pure HTML/CSS/JavaScript frontend, a FastAPI read API, and a normalized SQLite database. The current workspace contains 189 source-attributed listings from all nine publishers named in `Plan.md`, fetched on 17 August 2026.
 
-## Run locally
+## Run the full app
 
 ```bash
-python3 -m http.server 4173
+python3 -m pip install -r requirements.txt
+npm start
 ```
 
-Then open `http://localhost:4173`.
+Open `http://localhost:4173`. FastAPI serves the site and these read routes:
 
-Create a production-ready static directory with:
+- `GET /api/health`
+- `GET /api/listings`
+- `GET /api/sources`
+- Interactive API documentation at `/docs`
+
+Useful listing query parameters are `purpose`, `city`, `type`, `max_price`, `source`, `limit`, and `offset`.
+
+## Refresh the data
 
 ```bash
+npm run refresh
+```
+
+The nine enabled adapters make bounded requests, exclude records marked sold or rented, normalize their latest windows into `data/real_estate.db`, and export `data/listings.json` as the deployable fallback snapshot. A record leaving a bounded source window is hidden from this index; that alone is not treated as evidence that the property sold. Sources refresh independently with a global concurrency limit and deadline, so one unavailable publisher cannot discard another publisher's successful update. When the API is running, its scheduler checks whether a refresh is due every four hours.
+
+A refresh must normalize at least 75% of the previous bounded window before it can replace visible data. New sources normally require six safe records; Property in Nepal uses a three-record quorum because its first-party endpoint intentionally exposes a smaller latest-listing window. Stale data and source failures make the health response `degraded` and are surfaced in the listing feed badge.
+
+The SQLite file is a local runtime artifact and is not committed. On a fresh clone, the app seeds it from the attributed JSON snapshot before serving requests, then refreshes it when the source is due.
+
+- `INDEX_REFRESH_HOURS` — defaults to `4`
+- `INDEX_SOURCE_PAGE_SIZE` — bounded source import size, defaults to `24`
+- `INDEX_SOURCE_REFRESH_TIMEOUT_SECONDS` — per-source deadline, defaults to `75`
+- `INDEX_ENABLE_SCHEDULER` — defaults to `true`
+- `INDEX_DB_PATH` and `INDEX_EXPORT_PATH` — optional storage overrides
+- `INDEX_REFRESH_TOKEN` — enables the otherwise-hidden `POST /api/admin/refresh` route
+
+Do not commit a refresh token. The public API never returns seller email addresses or phone numbers.
+
+## Source and image policy
+
+All nine `Plan.md` sources are enabled: Nepal Homes, Real Estate in Nepal, GharGhaderi, Nepal Property Bazaar, Property in Nepal, Ghar Sansar Nepal, Kantipur Real Estate, GharBazar, and Lalpurja Nepal. Each listing retains its publisher name, original detail URL, and source-hosted photograph URL. The interface links back to the original record and never claims ownership of a publisher's photograph.
+
+The project owner has attested that the publishers authorized use of their listing information and photographs in this private prototype. That scope is recorded in [`SOURCE_PERMISSIONS.md`](SOURCE_PERMISSIONS.md) and exposed by `GET /api/sources`; the project does not store the underlying agreements. Seller and agent contact objects are intentionally discarded, and public text is checked for phone numbers and email addresses before a source window may replace indexed data. This private-prototype permission should be reviewed again before any public launch, resale, or materially different use.
+
+## Maps
+
+Each listing has a map handoff. If a source does not provide coordinates, the database uses a public locality or city centroid and sets `locationPrecision` accordingly. The interface labels these as approximate, displays the area with a Google Maps place embed, and provides a no-key Google Maps search link. It never presents a neighborhood centroid as the exact house or parcel.
+
+Unit-rate prices are stored only when the publisher explicitly supplies a basis such as per-aana, per-ropani, or per-square-foot; they are excluded from total-budget comparisons. Unlabelled sale prices remain totals and rentals default to monthly unless the source says otherwise. Visitors should still confirm all amounts and units on the original listing.
+
+## Build and test
+
+```bash
+npm run check
+npm run test:api
 npm run build
 ```
 
-## Prototype scope
+The build embeds the current `data/listings.json` snapshot into the static worker, including an `/api/listings` compatibility route. That static route is a snapshot, not a writable production database; deploy the FastAPI service with persistent storage for true scheduled production refreshes.
 
-- Responsive home and discovery experience
-- Client-side location, property, budget, purpose, and sort controls
-- Sample listing detail dialog and local saved-property state
-- Clear sample/roadmap labels so placeholder data is never presented as live
-- API-ready listing model in `script.js`
-- Local generated imagery; no external fonts, scripts, or image URLs
+Run the browser smoke test while either `npm start` or a static server is listening on port 4173:
 
-The scheduled scraper, database, deduplication logic, and FastAPI service described in `Plan.md` are not implemented in this frontend phase. Before building that ingestion layer, each source's robots directives, terms, reuse rights, and rate limits should be reviewed. The frontend copy describes that pipeline as planned rather than live.
+```bash
+npm run test:browser
+```
