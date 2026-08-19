@@ -69,7 +69,21 @@ def record_is_safe(record: ListingRecord, source_slug: str) -> bool:
     if record.latitude is not None and not (-90 <= record.latitude <= 90 and -180 <= record.longitude <= 180):
         return False
     public_text = " ".join(
-        (record.title, record.location_name, record.locality, record.city, record.description_excerpt)
+        (
+            record.title,
+            record.price_label,
+            record.location_name,
+            record.locality,
+            record.city,
+            record.area_label,
+            record.description_excerpt,
+            record.image_alt,
+            record.image_credit,
+            record.source_age_label,
+            record.source_url,
+            record.image_url,
+            json.dumps(record.raw_facts, ensure_ascii=False, default=str),
+        )
     )
     return not any(pattern.search(public_text) for pattern in (EMAIL_PATTERN, MOBILE_PATTERN, LANDLINE_PATTERN))
 
@@ -100,51 +114,60 @@ def seed_from_snapshot(
         if not separator or not source_slug or not external_id or not source_url:
             continue
         facts = item.get("facts") if isinstance(item.get("facts"), dict) else {}
-        records.append(
-            ListingRecord(
-                id=listing_id,
-                source_slug=source_slug,
-                external_id=external_id,
-                source_url=source_url,
-                title=str(item.get("title") or "Property listing"),
-                purpose="rent" if item.get("purpose") == "rent" else "buy",
-                property_type=str(item.get("type") or "Property"),
-                price_npr=item.get("price") if isinstance(item.get("price"), int) else None,
-                price_basis=str(
-                    item.get("priceBasis")
-                    or ("per-aana" if item.get("purpose") == "buy" and item.get("type") == "Land" else "monthly" if item.get("purpose") == "rent" else "total")
-                ),
-                price_label=str(item.get("priceLabel") or "Price on request"),
-                location_name=str(item.get("location") or "Nepal"),
-                locality=str(item.get("locality") or ""),
-                city=str(item.get("city") or ""),
-                area_label=str(item.get("area") or "Area on source"),
-                bedrooms=item.get("beds") if isinstance(item.get("beds"), int) else None,
-                bathrooms=item.get("baths") if isinstance(item.get("baths"), int) else None,
-                description_excerpt=str(item.get("description") or ""),
-                image_url=str(item.get("image") or ""),
-                image_alt=str(item.get("imageAlt") or "Source listing photograph"),
-                image_credit=str(item.get("imageCredit") or ""),
-                latitude=float(item["latitude"]) if isinstance(item.get("latitude"), (int, float)) else None,
-                longitude=float(item["longitude"]) if isinstance(item.get("longitude"), (int, float)) else None,
-                location_precision=str(item.get("locationPrecision") or "unknown"),
-                source_age_label=str(item.get("sourceAgeLabel") or ""),
-                raw_facts=facts,
-            )
+        record = ListingRecord(
+            id=listing_id,
+            source_slug=source_slug,
+            external_id=external_id,
+            source_url=source_url,
+            title=str(item.get("title") or "Property listing"),
+            purpose="rent" if item.get("purpose") == "rent" else "buy",
+            property_type=str(item.get("type") or "Property"),
+            price_npr=item.get("price") if isinstance(item.get("price"), int) else None,
+            price_basis=str(
+                item.get("priceBasis")
+                or ("monthly" if item.get("purpose") == "rent" else "total")
+            ),
+            price_label=str(item.get("priceLabel") or "Price on request"),
+            location_name=str(item.get("location") or "Nepal"),
+            locality=str(item.get("locality") or ""),
+            city=str(item.get("city") or ""),
+            area_label=str(item.get("area") or "Area on source"),
+            bedrooms=item.get("beds") if isinstance(item.get("beds"), int) else None,
+            bathrooms=item.get("baths") if isinstance(item.get("baths"), int) else None,
+            description_excerpt=str(item.get("description") or ""),
+            image_url=str(item.get("image") or ""),
+            image_alt=str(item.get("imageAlt") or "Source listing photograph"),
+            image_credit=str(item.get("imageCredit") or ""),
+            latitude=float(item["latitude"]) if isinstance(item.get("latitude"), (int, float)) else None,
+            longitude=float(item["longitude"]) if isinstance(item.get("longitude"), (int, float)) else None,
+            location_precision=str(item.get("locationPrecision") or "unknown"),
+            source_age_label=str(item.get("sourceAgeLabel") or ""),
+            raw_facts=facts,
         )
+        if record_is_safe(record, source_slug):
+            records.append(record)
 
     fetched_at = payload.get("asOf") if isinstance(payload.get("asOf"), str) else None
     inserted, _ = upsert_listings(records, database_path, fetched_at=fetched_at)
     return inserted
 
 
-def export_snapshot(path: Path = EXPORT_PATH) -> dict[str, object]:
-    listings, total = list_listings(limit=250)
-    stats = database_stats()
+def export_snapshot(
+    path: Path = EXPORT_PATH,
+    database_path: Path = DB_PATH,
+) -> dict[str, object]:
+    listings: list[dict[str, object]] = []
+    total = 0
+    while True:
+        page, total = list_listings(limit=250, offset=len(listings), path=database_path)
+        listings.extend(page)
+        if not page or len(listings) >= total:
+            break
+    stats = database_stats(database_path)
     payload: dict[str, object] = {
         "items": listings,
         "total": total,
-        "limit": 250,
+        "limit": len(listings),
         "offset": 0,
         "asOf": stats["latest_fetch_at"],
         "mode": "database-snapshot",
@@ -156,7 +179,7 @@ def export_snapshot(path: Path = EXPORT_PATH) -> dict[str, object]:
                 "status": source["status"],
                 "listingCount": source["listing_count"],
             }
-            for source in list_sources()
+            for source in list_sources(database_path)
         ],
     }
     path.parent.mkdir(parents=True, exist_ok=True)

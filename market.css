@@ -523,7 +523,7 @@ img {
 
 .inventory-property {
   display: grid;
-  grid-template-columns: 1.4rem 4.2rem minmax(0, 1fr);
+  grid-template-columns: 1.5rem 4.2rem minmax(0, 1fr);
   align-items: center;
   gap: 0.7rem;
 }
@@ -532,8 +532,8 @@ img {
   position: relative;
   display: grid;
   place-items: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.5rem;
+  height: 1.5rem;
   padding: 0;
   border: 1px solid var(--line-strong);
   background: var(--white);
@@ -822,6 +822,14 @@ img {
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.history-status {
+  min-height: 2rem;
+  margin: 0.7rem 1rem 0;
+  color: var(--slate);
+  font-size: 0.64rem;
+  line-height: 1.45;
 }
 
 .method-button {
@@ -1159,9 +1167,14 @@ img {
     padding-inline: 1rem;
   }
 
-  .brand-copy small,
-  .feed-state span:last-child {
+  .brand-copy small {
     display: none;
+  }
+
+  .feed-state {
+    max-width: 9.5rem;
+    font-size: 0.64rem;
+    text-align: right;
   }
 
   .market-main {
@@ -1235,11 +1248,11 @@ img {
 
   .inventory-row {
     grid-template-columns: minmax(0, 1fr) minmax(7rem, 0.38fr);
-    min-height: 8.5rem;
+    min-height: 10.75rem;
   }
 
   .inventory-property {
-    grid-row: 1 / 3;
+    grid-row: 1 / 4;
   }
 
   .inventory-price,
@@ -1247,12 +1260,13 @@ img {
     border-right: 0;
   }
 
-  .inventory-price {
+  .inventory-price,
+  .inventory-peer {
     border-bottom: 1px solid var(--line);
   }
 
   .inventory-peer {
-    display: none;
+    border-right: 0;
   }
 
   .analytics-rail {
@@ -1336,7 +1350,7 @@ img {
   }
 
   .inventory-property {
-    grid-template-columns: 1.2rem 3.25rem minmax(0, 1fr);
+    grid-template-columns: 1.5rem 3.25rem minmax(0, 1fr);
     gap: 0.5rem;
     padding-left: 0.55rem;
   }

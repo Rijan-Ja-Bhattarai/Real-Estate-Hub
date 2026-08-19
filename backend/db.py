@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -203,6 +204,7 @@ CREATE TABLE IF NOT EXISTS listing_price_observations (
     price_basis TEXT NOT NULL,
     is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
     is_clean INTEGER NOT NULL CHECK (is_clean IN (0, 1)),
+    duplicate_fingerprint TEXT NOT NULL DEFAULT '',
     PRIMARY KEY(listing_id, observed_at)
 );
 
@@ -257,10 +259,17 @@ def initialise(path: Path = DB_PATH) -> None:
         listing_columns = {row[1] for row in connection.execute("PRAGMA table_info(listings)")}
         if "price_basis" not in listing_columns:
             connection.execute("ALTER TABLE listings ADD COLUMN price_basis TEXT NOT NULL DEFAULT 'total'")
-            connection.execute(
-                "UPDATE listings SET price_basis = 'per-aana' WHERE purpose = 'buy' AND property_type = 'Land'"
-            )
             connection.execute("UPDATE listings SET price_basis = 'monthly' WHERE purpose = 'rent'")
+        observation_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(listing_price_observations)")
+        }
+        if "duplicate_fingerprint" not in observation_columns:
+            connection.execute(
+                """
+                ALTER TABLE listing_price_observations
+                ADD COLUMN duplicate_fingerprint TEXT NOT NULL DEFAULT ''
+                """
+            )
         connection.execute(
             """
             UPDATE listings
@@ -399,7 +408,38 @@ def _is_clean_asking_price(
     source_price = " ".join(
         str(raw_facts.get(key) or "") for key in ("source_price_text", "source_price_label")
     )
-    return re.search(r"\$|\busd\b|dollars?", f"{title} {price_label} {source_price}", re.IGNORECASE) is None
+    return re.search(
+        r"\$|€|£|₹|\b(?:usd|dollars?|eur|euros?|inr|indian\s+rupees?|gbp|pounds?\s+sterling|aud|cad|cny|rmb|aed)\b",
+        f"{title} {price_label} {source_price}",
+        re.IGNORECASE,
+    ) is None
+
+
+def _duplicate_fingerprint(
+    *,
+    title: str,
+    purpose: str,
+    city: str,
+    property_type: str,
+    price_npr: int | None,
+    price_basis: str,
+) -> str:
+    """Hash the public comparison identity without retaining title text in history."""
+
+    def normalise(value: object) -> str:
+        return re.sub(r"[\W_]+", " ", str(value or "").casefold(), flags=re.UNICODE).strip()
+
+    identity = "\x1f".join(
+        (
+            normalise(title),
+            normalise(purpose),
+            normalise(city),
+            normalise(property_type),
+            str(price_npr) if price_npr is not None else "",
+            normalise(price_basis),
+        )
+    )
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
 
 def _append_price_observation(
@@ -414,13 +454,14 @@ def _append_price_observation(
     price_basis: str,
     is_active: bool,
     is_clean: bool,
+    duplicate_fingerprint: str,
 ) -> None:
     connection.execute(
         """
         INSERT INTO listing_price_observations(
             listing_id, observed_at, purpose, city, property_type,
-            price_npr, price_basis, is_active, is_clean
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            price_npr, price_basis, is_active, is_clean, duplicate_fingerprint
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(listing_id, observed_at) DO NOTHING
         """,
         (
@@ -433,49 +474,83 @@ def _append_price_observation(
             price_basis,
             int(is_active),
             int(is_clean),
+            duplicate_fingerprint,
         ),
     )
 
 
 def _backfill_price_observations(connection: sqlite3.Connection) -> None:
-    if connection.execute("SELECT 1 FROM listing_price_observations LIMIT 1").fetchone():
-        return
-
     fallback_observed_at = utcnow()
-    rows = connection.execute(
+    if not connection.execute("SELECT 1 FROM listing_price_observations LIMIT 1").fetchone():
+        rows = connection.execute(
+            """
+            SELECT id, title, purpose, city, property_type, price_npr, price_basis,
+                   price_label, raw_facts_json, last_fetched_at, is_active
+            FROM listings
+            """
+        ).fetchall()
+        for row in rows:
+            try:
+                raw_facts = json.loads(row["raw_facts_json"] or "{}")
+            except json.JSONDecodeError:
+                raw_facts = {}
+            observed_at = row["last_fetched_at"] or fallback_observed_at
+            try:
+                datetime.fromisoformat(observed_at)
+            except (TypeError, ValueError):
+                observed_at = fallback_observed_at
+            _append_price_observation(
+                connection,
+                listing_id=row["id"],
+                observed_at=observed_at,
+                purpose=row["purpose"],
+                city=row["city"],
+                property_type=row["property_type"],
+                price_npr=row["price_npr"],
+                price_basis=row["price_basis"],
+                is_active=bool(row["is_active"]),
+                is_clean=_is_clean_asking_price(
+                    price_npr=row["price_npr"],
+                    title=row["title"],
+                    price_label=row["price_label"],
+                    raw_facts=raw_facts if isinstance(raw_facts, dict) else {},
+                ),
+                duplicate_fingerprint=_duplicate_fingerprint(
+                    title=row["title"],
+                    purpose=row["purpose"],
+                    city=row["city"],
+                    property_type=row["property_type"],
+                    price_npr=row["price_npr"],
+                    price_basis=row["price_basis"],
+                ),
+            )
+
+    missing_fingerprints = connection.execute(
         """
-        SELECT id, title, purpose, city, property_type, price_npr, price_basis,
-               price_label, raw_facts_json, last_fetched_at, is_active
-        FROM listings
+        SELECT o.rowid AS observation_rowid, l.title, o.purpose, o.city,
+               o.property_type, o.price_npr, o.price_basis
+        FROM listing_price_observations o
+        JOIN listings l ON l.id = o.listing_id
+        WHERE o.duplicate_fingerprint = ''
         """
     ).fetchall()
-    for row in rows:
-        try:
-            raw_facts = json.loads(row["raw_facts_json"] or "{}")
-        except json.JSONDecodeError:
-            raw_facts = {}
-        observed_at = row["last_fetched_at"] or fallback_observed_at
-        try:
-            datetime.fromisoformat(observed_at)
-        except (TypeError, ValueError):
-            observed_at = fallback_observed_at
-        _append_price_observation(
-            connection,
-            listing_id=row["id"],
-            observed_at=observed_at,
-            purpose=row["purpose"],
-            city=row["city"],
-            property_type=row["property_type"],
-            price_npr=row["price_npr"],
-            price_basis=row["price_basis"],
-            is_active=bool(row["is_active"]),
-            is_clean=_is_clean_asking_price(
-                price_npr=row["price_npr"],
-                title=row["title"],
-                price_label=row["price_label"],
-                raw_facts=raw_facts if isinstance(raw_facts, dict) else {},
-            ),
-        )
+    connection.executemany(
+        "UPDATE listing_price_observations SET duplicate_fingerprint = ? WHERE rowid = ?",
+        (
+            (
+                _duplicate_fingerprint(
+                    title=row["title"],
+                    purpose=row["purpose"],
+                    city=row["city"],
+                    property_type=row["property_type"],
+                    price_npr=row["price_npr"],
+                    price_basis=row["price_basis"],
+                ),
+                row["observation_rowid"],
+            )
+            for row in missing_fingerprints
+        ),
+    )
 
 
 def upsert_listings(
@@ -586,6 +661,14 @@ def upsert_listings(
                     price_label=record.price_label,
                     raw_facts=record.raw_facts,
                 ),
+                duplicate_fingerprint=_duplicate_fingerprint(
+                    title=record.title,
+                    purpose=record.purpose,
+                    city=record.city,
+                    property_type=record.property_type,
+                    price_npr=record.price_npr,
+                    price_basis=record.price_basis,
+                ),
             )
         for row in deactivated_rows:
             if row["id"] in active_ids:
@@ -609,6 +692,14 @@ def upsert_listings(
                     title=row["title"],
                     price_label=row["price_label"],
                     raw_facts=raw_facts if isinstance(raw_facts, dict) else {},
+                ),
+                duplicate_fingerprint=_duplicate_fingerprint(
+                    title=row["title"],
+                    purpose=row["purpose"],
+                    city=row["city"],
+                    property_type=row["property_type"],
+                    price_npr=row["price_npr"],
+                    price_basis=row["price_basis"],
                 ),
             )
         connection.execute(
@@ -727,6 +818,27 @@ def list_sources(path: Path = DB_PATH) -> list[dict[str, object]]:
     return [dict(row) for row in rows]
 
 
+def _market_quantile(values: Sequence[int], percentile: float) -> float:
+    index = (len(values) - 1) * percentile
+    lower = int(index)
+    fraction = index - lower
+    if lower + 1 >= len(values):
+        return float(values[lower])
+    return float(values[lower]) + fraction * (values[lower + 1] - values[lower])
+
+
+def _screen_market_outliers(prices: Sequence[int]) -> list[int]:
+    ordered = sorted(prices)
+    if len(ordered) < 8:
+        return ordered
+    first_quartile = _market_quantile(ordered, 0.25)
+    third_quartile = _market_quantile(ordered, 0.75)
+    interquartile_range = third_quartile - first_quartile
+    lower_fence = max(0.0, first_quartile - interquartile_range * 2.5)
+    upper_fence = third_quartile + interquartile_range * 2.5
+    return [price for price in ordered if lower_fence <= price <= upper_fence]
+
+
 def list_market_series(
     *,
     purpose: str | None = None,
@@ -758,7 +870,11 @@ def list_market_series(
             f"""
             SELECT MAX(observed_at)
             FROM listing_price_observations
-            WHERE observed_at >= ? AND observed_at < ?{cohort_where}
+            WHERE observed_at >= ? AND observed_at < ?
+              AND is_active = 1
+              AND is_clean = 1
+              AND price_npr > 0
+              {cohort_where}
             """,
             parameters,
         ).fetchone()[0]
@@ -767,7 +883,7 @@ def list_market_series(
             WITH ranked AS (
                 SELECT observed_at, DATE(observed_at) AS observed_date,
                        listing_id, purpose, city, property_type, price_npr,
-                       price_basis, is_active, is_clean,
+                       price_basis, is_active, is_clean, duplicate_fingerprint,
                        ROW_NUMBER() OVER (
                            PARTITION BY listing_id, DATE(observed_at)
                            ORDER BY observed_at DESC
@@ -775,8 +891,8 @@ def list_market_series(
                 FROM listing_price_observations
                 WHERE observed_at >= ? AND observed_at < ?
             )
-            SELECT observed_at, observed_date, purpose, city, property_type,
-                   price_npr, price_basis
+            SELECT observed_at, observed_date, listing_id, purpose, city, property_type,
+                   price_npr, price_basis, duplicate_fingerprint
             FROM ranked
             WHERE daily_rank = 1
               AND is_active = 1
@@ -788,7 +904,7 @@ def list_market_series(
             parameters,
         ).fetchall()
 
-    groups: dict[tuple[str, str, str, str, str], list[int]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str, str], dict[str, int]] = defaultdict(dict)
     for row in rows:
         key = (
             row["observed_date"],
@@ -797,10 +913,14 @@ def list_market_series(
             row["property_type"],
             row["price_basis"],
         )
-        groups[key].append(int(row["price_npr"]))
+        fingerprint = row["duplicate_fingerprint"] or f"listing:{row['listing_id']}"
+        groups[key].setdefault(fingerprint, int(row["price_npr"]))
 
     items: list[dict[str, object]] = []
-    for (date, group_purpose, group_city, group_type, group_basis), prices in groups.items():
+    for (date, group_purpose, group_city, group_type, group_basis), deduplicated in groups.items():
+        prices = _screen_market_outliers(list(deduplicated.values()))
+        if not prices:
+            continue
         median_price = median(prices)
         items.append(
             {

@@ -72,10 +72,6 @@
           <span>Property</span>
           <select data-type>
             <option value="all">All property</option>
-            <option value="House">House</option>
-            <option value="Apartment">Apartment</option>
-            <option value="Land">Land</option>
-            <option value="Commercial">Commercial</option>
           </select>
         </label>
 
@@ -89,7 +85,7 @@
         <label class="terminal-field">
           <span>Order</span>
           <select data-sort>
-            <option value="signal-high">Scenario: upside</option>
+            <option value="signal-high">Signal: strongest</option>
             <option value="price-low">Ask: low to high</option>
             <option value="price-high">Ask: high to low</option>
             <option value="value-low">Peer position: low</option>
@@ -133,7 +129,7 @@
               <h2 id="inventory-title">Listings tape</h2>
             </div>
             <div class="panel-meta">
-              <span data-result-count>Loading</span>
+              <span data-result-count role="status" aria-live="polite">Loading</span>
               <span data-compare-count>0 / 4 compared</span>
             </div>
           </header>
@@ -142,10 +138,10 @@
             <span>Compare / property</span>
             <span>Ask</span>
             <span>Peer position</span>
-            <span>Scenario</span>
+            <span>Market signal</span>
           </div>
 
-          <div class="inventory-list" data-inventory-list aria-live="polite" aria-busy="true">
+          <div class="inventory-list" data-inventory-list aria-busy="true">
             <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
             <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
             <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
@@ -168,7 +164,7 @@
               </div>
               <span class="basis-chip" data-chart-basis>--</span>
             </header>
-            <canvas data-distribution-chart height="220" aria-label="Filtered asking-price distribution"></canvas>
+            <canvas data-distribution-chart height="220" role="img" aria-label="Filtered asking-price distribution"></canvas>
             <div class="chart-scale" data-chart-scale aria-hidden="true"><span>--</span><span>--</span><span>--</span></div>
             <p class="chart-note" data-distribution-note>Waiting for comparable listing data.</p>
           </section>
@@ -176,10 +172,10 @@
           <section class="analytics-panel scenario-panel" aria-labelledby="scenario-title">
             <header class="panel-header panel-header-tight">
               <div>
-                <p>EXPERIMENTAL SCENARIO</p>
-                <h2 id="scenario-title">Asking-price direction</h2>
+                <p data-analysis-eyebrow>EXPERIMENTAL SCENARIO</p>
+                <h2 id="scenario-title" data-analysis-title>Asking-price direction</h2>
               </div>
-              <div class="horizon-control" role="group" aria-label="Scenario horizon">
+              <div class="horizon-control" data-horizon-control role="group" aria-label="Scenario horizon">
                 <button class="is-active" type="button" data-horizon="12" aria-pressed="true">12M</button>
                 <button type="button" data-horizon="24" aria-pressed="false">24M</button>
                 <button type="button" data-horizon="36" aria-pressed="false">36M</button>
@@ -198,25 +194,26 @@
               </div>
             </div>
 
-            <canvas data-scenario-chart height="170" aria-label="Asking-price scenario range"></canvas>
+            <canvas data-scenario-chart height="170" role="img" aria-label="Asking-price scenario range"></canvas>
             <div class="scenario-stats">
-              <div><span>Current ask</span><strong data-current-ask>--</strong></div>
-              <div><span>Scenario midpoint</span><strong data-scenario-mid>--</strong></div>
-              <div><span>Scenario range</span><strong data-scenario-range>--</strong></div>
-              <div><span>Confidence</span><strong data-confidence>--</strong></div>
+              <div><span data-current-ask-label>Current ask</span><strong data-current-ask>--</strong></div>
+              <div><span data-scenario-mid-label>Scenario midpoint</span><strong data-scenario-mid>--</strong></div>
+              <div><span data-scenario-range-label>Scenario range</span><strong data-scenario-range>--</strong></div>
+              <div><span data-confidence-label>Confidence</span><strong data-confidence>--</strong></div>
             </div>
+            <p class="history-status" data-history-status role="status">Checking observed asking-price history.</p>
             <button class="method-button" type="button" data-method-open aria-expanded="false" aria-controls="method-panel">
-              Method and limitations <span aria-hidden="true">+</span>
+              <span data-method-label>Method and limitations</span><span aria-hidden="true">+</span>
             </button>
             <div class="method-panel" id="method-panel" data-method-panel hidden>
-              <p>
+              <p data-method-copy>
                 The signal measures how far this asking price sits from the median of comparable active listings,
                 then applies a capped mean-reversion scenario. It is not a valuation, transaction-price forecast,
                 or promise of future performance.
               </p>
               <dl>
-                <div><dt>Inputs</dt><dd>Current asks, property type, city, price basis, and area when standardized.</dd></div>
-                <div><dt>Missing</dt><dd>Closed sales, demand, financing, price history, and property-condition adjustments.</dd></div>
+                <div><dt>Inputs</dt><dd data-method-inputs>Current asks, purpose, property type, city, and exact price basis.</dd></div>
+                <div><dt>Missing</dt><dd data-method-missing>Closed sales, demand, financing, price history, and property-condition adjustments.</dd></div>
               </dl>
             </div>
           </section>

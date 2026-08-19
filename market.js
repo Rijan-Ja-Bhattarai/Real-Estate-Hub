@@ -3,6 +3,10 @@ const fallbackImage = "/assets/images/property-image-unavailable.svg";
 const state = {
   properties: [],
   analytics: new Map(),
+  analyticsEligibleIds: new Set(),
+  duplicateIds: new Set(),
+  outlierIds: new Set(),
+  history: new Map(),
   purpose: "buy",
   city: "all",
   type: "House",
@@ -15,6 +19,7 @@ const state = {
   asOf: null,
   sourceCount: 0,
   feedMode: "snapshot",
+  freshness: null,
 };
 
 const elements = {
@@ -37,15 +42,27 @@ const elements = {
   chartBasis: document.querySelector("[data-chart-basis]"),
   chartScale: document.querySelector("[data-chart-scale]"),
   scenarioCanvas: document.querySelector("[data-scenario-chart]"),
+  analysisEyebrow: document.querySelector("[data-analysis-eyebrow]"),
+  analysisTitle: document.querySelector("[data-analysis-title]"),
+  horizonControl: document.querySelector("[data-horizon-control]"),
   scenarioProperty: document.querySelector("[data-scenario-property]"),
   scenarioPeer: document.querySelector("[data-scenario-peer]"),
   scenarioSignal: document.querySelector("[data-scenario-signal]"),
   scenarioDirection: document.querySelector("[data-scenario-direction]"),
   scenarioChange: document.querySelector("[data-scenario-change]"),
   currentAsk: document.querySelector("[data-current-ask]"),
+  currentAskLabel: document.querySelector("[data-current-ask-label]"),
   scenarioMid: document.querySelector("[data-scenario-mid]"),
+  scenarioMidLabel: document.querySelector("[data-scenario-mid-label]"),
   scenarioRange: document.querySelector("[data-scenario-range]"),
+  scenarioRangeLabel: document.querySelector("[data-scenario-range-label]"),
   confidence: document.querySelector("[data-confidence]"),
+  confidenceLabel: document.querySelector("[data-confidence-label]"),
+  historyStatus: document.querySelector("[data-history-status]"),
+  methodLabel: document.querySelector("[data-method-label]"),
+  methodCopy: document.querySelector("[data-method-copy]"),
+  methodInputs: document.querySelector("[data-method-inputs]"),
+  methodMissing: document.querySelector("[data-method-missing]"),
   inventoryKpi: document.querySelector("[data-kpi-inventory]"),
   inventoryKpiNote: document.querySelector("[data-kpi-inventory-note]"),
   medianKpi: document.querySelector("[data-kpi-median]"),
@@ -69,8 +86,10 @@ function escapeHTML(value) {
 }
 
 function safeURL(value, fallback = "#") {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) return fallback;
   try {
-    const url = new URL(String(value), window.location.origin);
+    const url = new URL(candidate, window.location.origin);
     if (!["http:", "https:"].includes(url.protocol)) return fallback;
     return url.href;
   } catch {
@@ -79,12 +98,14 @@ function safeURL(value, fallback = "#") {
 }
 
 function finiteNumber(value) {
+  if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
 function normaliseProperty(property) {
   const facts = property.facts && typeof property.facts === "object" ? property.facts : {};
+  const price = finiteNumber(property.price);
   return {
     id: String(property.id ?? ""),
     title: String(property.title || "Untitled property"),
@@ -93,7 +114,7 @@ function normaliseProperty(property) {
     city: String(property.city || "Other"),
     type: String(property.type || "Property"),
     purpose: property.purpose === "rent" ? "rent" : "buy",
-    price: finiteNumber(property.price),
+    price: price !== null && price > 0 ? price : null,
     priceBasis: String(property.priceBasis || (property.purpose === "rent" ? "monthly" : "total")),
     priceLabel: String(property.priceLabel || ""),
     beds: finiteNumber(property.beds),
@@ -128,7 +149,7 @@ function qualityFlags(property) {
 
 function hasCurrencyMismatch(property) {
   const sourcePrice = factValue(property, "source_price_text", "source_price_label");
-  return /\$|\busd\b|dollar/i.test(`${property.title} ${property.priceLabel} ${sourcePrice}`);
+  return /\$|€|£|₹|\b(?:usd|dollars?|eur|euros?|inr|indian\s+rupees?|gbp|pounds?\s+sterling|aud|cad|cny|rmb|aed)\b/i.test(`${property.title} ${property.priceLabel} ${sourcePrice}`);
 }
 
 function isCleanForAnalytics(property) {
@@ -136,7 +157,11 @@ function isCleanForAnalytics(property) {
 }
 
 function parseArea(areaLabel) {
-  const text = String(areaLabel || "").toLowerCase().replaceAll(",", " ");
+  const text = String(areaLabel || "")
+    .toLowerCase()
+    .replace(/(\d),(?=\d{3}(?:\D|$))/g, "$1")
+    .replaceAll(",", " ");
+  if (/\d(?:\.\d+)?\s*(?:-|–|—|to)\s*\d/i.test(text)) return null;
   const ropani = text.match(/(\d+(?:\.\d+)?)\s*ropani\b/);
   const aana = text.match(/(\d+(?:\.\d+)?)\s*(?:aana|ana|anna)\b/);
   const paisa = text.match(/(\d+(?:\.\d+)?)\s*paisa\b/);
@@ -155,7 +180,10 @@ function derivedUnitAsk(property) {
   if (property.price === null || !["total", "monthly"].includes(property.priceBasis)) return null;
   const parsed = parseArea(property.area);
   if (!parsed) return null;
-  return { value: property.price / parsed.value, unit: parsed.unit };
+  return {
+    value: property.price / parsed.value,
+    unit: property.priceBasis === "monthly" ? `${parsed.unit} / month` : parsed.unit,
+  };
 }
 
 function cohortKey(property) {
@@ -163,7 +191,7 @@ function cohortKey(property) {
 }
 
 function duplicateKey(property) {
-  const title = property.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const title = property.title.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   return [title, property.city.toLowerCase(), property.priceBasis, property.price].join("|");
 }
 
@@ -178,17 +206,22 @@ function quantile(values, percentile) {
 
 function buildAnalytics(properties) {
   const groups = new Map();
+  const duplicateIds = new Set();
   properties.filter(isCleanForAnalytics).forEach((property) => {
     const key = cohortKey(property);
     if (!groups.has(key)) groups.set(key, new Map());
     const group = groups.get(key);
     const fingerprint = duplicateKey(property);
-    if (!group.has(fingerprint)) group.set(fingerprint, property);
+    if (group.has(fingerprint)) duplicateIds.add(property.id);
+    else group.set(fingerprint, property);
   });
 
   const analytics = new Map();
+  const analyticsEligibleIds = new Set();
+  const outlierIds = new Set();
   groups.forEach((deduplicated, key) => {
-    const values = [...deduplicated.values()].map((property) => property.price).sort((a, b) => a - b);
+    const candidates = [...deduplicated.values()].sort((first, second) => first.price - second.price);
+    const values = candidates.map((property) => property.price);
     if (values.length < 8) return;
 
     const initialQ1 = quantile(values, 0.25);
@@ -196,8 +229,10 @@ function buildAnalytics(properties) {
     const initialIqr = initialQ3 - initialQ1;
     const lowerFence = Math.max(0, initialQ1 - initialIqr * 2.5);
     const upperFence = initialQ3 + initialIqr * 2.5;
-    const filtered = values.filter((value) => value >= lowerFence && value <= upperFence);
-    if (filtered.length < 8) return;
+    const filteredProperties = candidates.filter((property) => property.price >= lowerFence && property.price <= upperFence);
+    candidates.filter((property) => !filteredProperties.includes(property)).forEach((property) => outlierIds.add(property.id));
+    if (filteredProperties.length < 8) return;
+    const filtered = filteredProperties.map((property) => property.price);
 
     const q1 = quantile(filtered, 0.25);
     const median = quantile(filtered, 0.5);
@@ -212,18 +247,29 @@ function buildAnalytics(properties) {
       sampleCount: filtered.length,
       iqrRelative: median > 0 ? (q3 - q1) / median : 0,
     });
+    filteredProperties.forEach((property) => analyticsEligibleIds.add(property.id));
   });
-  return analytics;
+  return { groups: analytics, analyticsEligibleIds, duplicateIds, outlierIds };
 }
 
 function peerStats(property) {
-  if (!property || !isCleanForAnalytics(property)) return null;
+  if (!property || !isCleanForAnalytics(property) || !state.analyticsEligibleIds.has(property.id)) return null;
   const group = state.analytics.get(cohortKey(property));
   if (!group || property.price < group.lowerFence || property.price > group.upperFence) return null;
   const belowOrEqual = group.values.filter((value) => value <= property.price).length;
   const percentile = Math.round((belowOrEqual / group.values.length) * 100);
   const delta = group.median > 0 ? property.price / group.median - 1 : 0;
   return { ...group, percentile, delta };
+}
+
+function analyticsExclusion(property) {
+  if (!property || property.price === null || property.price <= 0) return "asking price unavailable";
+  if (qualityFlags(property).length) return "excluded by a source-data quality flag";
+  if (hasCurrencyMismatch(property)) return "currency is not verified as NPR";
+  if (state.duplicateIds.has(property.id)) return "duplicate listing fingerprint";
+  if (state.outlierIds.has(property.id)) return "robust price outlier";
+  if (!state.analytics.has(cohortKey(property))) return "needs 8 clean, like-for-like peers";
+  return "not eligible for this peer benchmark";
 }
 
 function scenarioFor(property) {
@@ -239,6 +285,35 @@ function scenarioFor(property) {
   const tone = percentage > 0.015 ? "positive" : percentage < -0.015 ? "negative" : "neutral";
   const confidence = stats.sampleCount >= 20 ? "Medium" : "Low";
   return { available: true, percentage, uncertainty, midpoint, low, high, direction, tone, confidence, stats };
+}
+
+function historyTrendFor(property, history = historyFor(property)) {
+  const points = qualifyingHistoryPoints(history);
+  if (!property || !peerStats(property) || points.length < 2) return { available: false };
+  const first = points[0];
+  const latest = points.at(-1);
+  const percentage = first.medianPriceNpr > 0 ? latest.medianPriceNpr / first.medianPriceNpr - 1 : 0;
+  const direction = percentage > 0.015 ? "Rising" : percentage < -0.015 ? "Falling" : "Stable";
+  const tone = percentage > 0.015 ? "positive" : percentage < -0.015 ? "negative" : "neutral";
+  return { available: true, percentage, direction, tone, points, first, latest, history };
+}
+
+function marketSignalFor(property) {
+  const trend = historyTrendFor(property);
+  if (trend.available) {
+    return {
+      ...trend,
+      kind: "history",
+      note: `observed · ${trend.points.length} days · latest n=${trend.latest.listingCount}`,
+    };
+  }
+  const scenario = scenarioFor(property);
+  if (!scenario.available) return { available: false, tone: "neutral", kind: "none" };
+  return {
+    ...scenario,
+    kind: "scenario",
+    note: `${state.horizon}M scenario · ${scenario.confidence.toLowerCase()} confidence`,
+  };
 }
 
 function compactNumber(value, maximumFractionDigits = 1) {
@@ -298,8 +373,8 @@ function formatPercent(value, forceSign = false) {
   return `${sign}${percentage.toFixed(Math.abs(percentage) < 10 ? 1 : 0)}%`;
 }
 
-function peerPosition(stats) {
-  if (!stats) return { value: "Not benchmarked", note: "Insufficient clean peers" };
+function peerPosition(property, stats = peerStats(property)) {
+  if (!stats) return { value: "Not benchmarked", note: analyticsExclusion(property) };
   const magnitude = Math.abs(stats.delta);
   const position = magnitude < 0.015 ? "at peer median" : stats.delta < 0 ? "below peer median" : "above peer median";
   return { value: `${formatPercent(magnitude)} ${position}`, note: `${stats.percentile}th ask percentile · n=${stats.sampleCount}` };
@@ -326,14 +401,114 @@ async function fetchJSON(url, timeout = 9000) {
 
 async function fetchListings() {
   try {
-    const payload = await fetchJSON("/api/listings?limit=250&offset=0");
+    const pageSize = 250;
+    const payload = await fetchJSON(`/api/listings?limit=${pageSize}&offset=0`);
     if (!Array.isArray(payload.items)) throw new Error("Listing response is missing items");
-    return { ...payload, feedMode: payload.mode === "live" ? "live" : "snapshot" };
+    const feedMode = /^live(?:-|$)/.test(String(payload.mode || "")) ? "live" : "snapshot";
+    if (feedMode !== "live") return { ...payload, feedMode };
+
+    const items = [...payload.items];
+    const ids = new Set(items.map((item) => String(item.id ?? "")));
+    const total = Math.max(items.length, Number(payload.total) || 0);
+    let offset = items.length;
+    while (offset < total) {
+      const page = await fetchJSON(`/api/listings?limit=${pageSize}&offset=${offset}`);
+      if (!Array.isArray(page.items) || !page.items.length) break;
+      let added = 0;
+      page.items.forEach((item) => {
+        const id = String(item.id ?? "");
+        if (id && !ids.has(id)) {
+          ids.add(id);
+          items.push(item);
+          added += 1;
+        }
+      });
+      offset += page.items.length;
+      if (!added) break;
+    }
+    return { ...payload, items, total, feedMode };
   } catch {
     const payload = await fetchJSON("/data/listings.json");
     if (!Array.isArray(payload.items)) throw new Error("Snapshot is missing items");
     return { ...payload, feedMode: "snapshot" };
   }
+}
+
+function historyFor(property) {
+  return property ? state.history.get(cohortKey(property)) || null : null;
+}
+
+function normaliseHistoryPayload(payload, property) {
+  const readiness = payload?.readiness && typeof payload.readiness === "object" ? payload.readiness : {};
+  const items = Array.isArray(payload?.items)
+    ? payload.items.filter((item) => (
+        item?.purpose === property.purpose
+        && item?.city === property.city
+        && item?.propertyType === property.type
+        && item?.priceBasis === property.priceBasis
+        && Number.isFinite(Number(item?.medianPriceNpr))
+        && Number(item.medianPriceNpr) > 0
+        && Number.isFinite(Number(item?.listingCount))
+        && !Number.isNaN(new Date(item?.date).valueOf())
+      )).map((item) => ({
+        date: String(item.date),
+        medianPriceNpr: Number(item.medianPriceNpr),
+        listingCount: Number(item.listingCount),
+      })).sort((first, second) => new Date(first.date) - new Date(second.date))
+    : [];
+  const ready = payload?.status === "ready" && readiness.ready === true;
+  return { status: ready ? "ready" : "collecting", readiness, items, asOf: payload?.asOf || null, fetchedAt: Date.now() };
+}
+
+async function ensureHistory(property) {
+  if (!property) return;
+  const key = cohortKey(property);
+  if (state.feedMode === "snapshot") {
+    state.history.set(key, { status: "unavailable", readiness: {}, items: [] });
+    return;
+  }
+  const existing = state.history.get(key);
+  if (existing?.status === "loading" || existing?.status === "ready") return;
+  if (existing?.status === "collecting" && Date.now() < existing.fetchedAt + 5 * 60_000) return;
+  if (existing?.status === "unavailable" && Date.now() < existing.retryAt) return;
+  state.history.set(key, { status: "loading", readiness: {}, items: [] });
+  const parameters = new URLSearchParams({
+    purpose: property.purpose,
+    city: property.city,
+    type: property.type,
+    price_basis: property.priceBasis,
+    days: "365",
+  });
+  try {
+    const payload = await fetchJSON(`/api/market/series?${parameters}`);
+    state.history.set(key, normaliseHistoryPayload(payload, property));
+  } catch {
+    state.history.set(key, { status: "unavailable", readiness: {}, items: [], retryAt: Date.now() + 30_000 });
+  }
+  const focus = focusedProperty(filteredProperties());
+  if (focus && cohortKey(focus) === key) {
+    const properties = filteredProperties();
+    renderInventory(properties);
+    renderComparison();
+    renderAnalytics(properties, { loadHistory: false });
+  }
+}
+
+function historyProgress(entry) {
+  if (!entry || entry.status === "loading") return "Checking whether this exact cohort has enough observed history.";
+  if (entry.status === "unavailable") {
+    return state.feedMode === "snapshot"
+      ? "Observed history is unavailable in this static snapshot; the experimental peer scenario remains in view."
+      : "The history feed is temporarily unavailable; the experimental peer scenario remains in view.";
+  }
+  if (entry.status === "ready") return "Observed history is ready but needs at least two qualifying points to draw a trend.";
+  const readiness = entry.readiness || {};
+  const qualifying = Number(readiness.qualifyingDays) || 0;
+  const minimumDays = Number(readiness.minimumObservedDays) || 14;
+  const windowDays = Number(readiness.historyWindowDays) || 0;
+  const minimumWindow = Number(readiness.minimumWindowDays) || 30;
+  const minimumSample = Number(readiness.minimumDailySample) || 8;
+  return `History collecting: ${qualifying}/${minimumDays} qualifying days across a ${windowDays}/${minimumWindow}-day window; each day needs at least ${minimumSample} clean asks.`;
 }
 
 function feedAgeHours(value) {
@@ -343,12 +518,22 @@ function feedAgeHours(value) {
 }
 
 function setFeedState() {
-  const stale = feedAgeHours(state.asOf) > 8;
+  const sourceErrors = Array.isArray(state.freshness?.sourceErrors) ? state.freshness.sourceErrors.length : 0;
+  const stale = state.freshness?.state === "stale" || feedAgeHours(state.asOf) > 8 || sourceErrors > 0;
   const mode = state.feedMode === "live" ? "Live API" : "Deployable snapshot";
   elements.feedState.className = `feed-state ${stale ? "is-stale" : "is-live"}`;
   elements.feedState.querySelector("span:last-child").textContent = `${mode} · ${state.properties.length} listings`;
+  elements.feedState.setAttribute(
+    "aria-label",
+    `${mode}, ${state.properties.length} listings, ${stale ? "data needs attention" : "data current"}${sourceErrors ? `, ${sourceErrors} source alerts` : ""}`,
+  );
   elements.asOf.textContent = formatDate(state.asOf, true);
-  elements.coverage.textContent = `${state.sourceCount} sources · ${stale ? "refresh overdue" : "refresh current"}`;
+  const coverageState = sourceErrors
+    ? `${sourceErrors} source alert${sourceErrors === 1 ? "" : "s"}`
+    : stale
+      ? "refresh overdue"
+      : "refresh current";
+  elements.coverage.textContent = `${state.sourceCount} sources · ${coverageState}`;
   elements.dataScope.textContent = `${state.properties.length} active asking listings from ${state.sourceCount} attributed publishers, indexed ${formatDate(state.asOf)}. This is a bounded listing sample, not a census of Nepal's housing market.`;
 }
 
@@ -356,6 +541,22 @@ function populateCities() {
   const cities = [...new Set(state.properties.map((property) => property.city).filter(Boolean))].sort();
   elements.city.innerHTML = '<option value="all">All markets</option>' + cities.map((city) => `<option value="${escapeHTML(city)}">${escapeHTML(city)}</option>`).join("");
   elements.city.value = state.city;
+}
+
+function populateTypes() {
+  const preferred = ["House", "Apartment", "Land", "Commercial"];
+  const types = [...new Set(state.properties.map((property) => property.type).filter(Boolean))]
+    .sort((first, second) => {
+      const firstIndex = preferred.indexOf(first);
+      const secondIndex = preferred.indexOf(second);
+      if (firstIndex >= 0 || secondIndex >= 0) {
+        return (firstIndex < 0 ? preferred.length : firstIndex) - (secondIndex < 0 ? preferred.length : secondIndex);
+      }
+      return first.localeCompare(second);
+    });
+  if (state.type !== "all" && !types.includes(state.type)) state.type = "all";
+  elements.type.innerHTML = '<option value="all">All property</option>' + types.map((type) => `<option value="${escapeHTML(type)}">${escapeHTML(type)}</option>`).join("");
+  elements.type.value = state.type;
 }
 
 function basisCandidates() {
@@ -386,16 +587,22 @@ function filteredProperties() {
   });
 
   return properties.sort((first, second) => {
-    if (state.sort === "newest") return new Date(second.indexedAt || 0) - new Date(first.indexedAt || 0);
+    if (state.sort === "newest") {
+      const firstTime = new Date(first.indexedAt || 0).valueOf();
+      const secondTime = new Date(second.indexedAt || 0).valueOf();
+      return (Number.isFinite(secondTime) ? secondTime : 0) - (Number.isFinite(firstTime) ? firstTime : 0);
+    }
     if (state.sort === "price-low" || state.sort === "price-high") {
-      const basisOrder = first.priceBasis.localeCompare(second.priceBasis);
-      if (basisOrder && state.basis === "all") return basisOrder;
+      if (first.price === null || second.price === null) {
+        if (first.price === null && second.price === null) return 0;
+        return first.price === null ? 1 : -1;
+      }
       const direction = state.sort === "price-low" ? 1 : -1;
-      return ((first.price ?? Infinity) - (second.price ?? Infinity)) * direction;
+      return (first.price - second.price) * direction;
     }
     if (state.sort === "value-low") return (peerStats(first)?.delta ?? Infinity) - (peerStats(second)?.delta ?? Infinity);
-    const firstSignal = scenarioFor(first);
-    const secondSignal = scenarioFor(second);
+    const firstSignal = marketSignalFor(first);
+    const secondSignal = marketSignalFor(second);
     return (secondSignal.available ? secondSignal.percentage : -Infinity) - (firstSignal.available ? firstSignal.percentage : -Infinity);
   });
 }
@@ -412,10 +619,10 @@ function inventoryRow(property) {
   const selected = state.selectedIds.includes(property.id);
   const focused = state.focusedId === property.id;
   const stats = peerStats(property);
-  const position = peerPosition(stats);
-  const scenario = scenarioFor(property);
-  const scenarioValue = scenario.available ? `${scenario.direction} ${formatPercent(scenario.percentage, true)}` : "No signal";
-  const scenarioNote = scenario.available ? `${state.horizon}M · ${scenario.confidence.toLowerCase()} confidence` : "needs 8 clean peers";
+  const position = peerPosition(property, stats);
+  const signal = marketSignalFor(property);
+  const signalValue = signal.available ? `${signal.direction} ${formatPercent(signal.percentage, true)}` : "No signal";
+  const signalNote = signal.available ? signal.note : analyticsExclusion(property);
   const typeLabel = property.purpose === "rent" ? `${property.type} · rent` : `${property.type} · sale`;
   return `
     <article class="inventory-row${selected ? " is-selected" : ""}${focused ? " is-focused" : ""}" data-property-id="${escapeHTML(property.id)}">
@@ -437,9 +644,9 @@ function inventoryRow(property) {
         <span>${escapeHTML(position.note)}</span>
         ${stats ? `<div class="inventory-peer-meter" aria-hidden="true"><i style="left: ${Math.max(0, Math.min(100, stats.percentile))}%"></i></div>` : ""}
       </div>
-      <div class="inventory-scenario is-${scenario.tone || "neutral"}">
-        <strong>${escapeHTML(scenarioValue)}</strong>
-        <span>${escapeHTML(scenarioNote)}</span>
+      <div class="inventory-scenario is-${signal.tone || "neutral"}">
+        <strong>${escapeHTML(signalValue)}</strong>
+        <span>${escapeHTML(signalNote)}</span>
       </div>
     </article>`;
 }
@@ -460,15 +667,16 @@ function comparisonMetric(label, value, className = "") {
 
 function comparisonCard(property) {
   const stats = peerStats(property);
-  const position = peerPosition(stats);
-  const scenario = scenarioFor(property);
+  const position = peerPosition(property, stats);
+  const signal = marketSignalFor(property);
   const derived = derivedUnitAsk(property);
   const bedsAndBaths = [property.beds !== null ? `${compactNumber(property.beds, 0)} bed` : "", property.baths !== null ? `${compactNumber(property.baths, 0)} bath` : ""].filter(Boolean).join(" · ");
   const road = factValue(property, "road_access", "road_and_area");
   const facing = factValue(property, "facing");
   const parking = factValue(property, "parking");
   const furnishing = factValue(property, "furnishing", "furnished");
-  const signalClass = `comparison-signal is-${scenario.tone || "neutral"}`;
+  const signalClass = `comparison-signal is-${signal.tone || "neutral"}`;
+  const signalLabel = signal.kind === "history" ? "Observed median trend" : `${state.horizon}M scenario`;
   return `
     <article class="comparison-card" data-comparison-id="${escapeHTML(property.id)}">
       <div class="comparison-card-image">
@@ -487,7 +695,7 @@ function comparisonCard(property) {
         ${comparisonMetric("Beds / baths", bedsAndBaths)}
         ${comparisonMetric("Peer median", stats ? `${formatCurrency(stats.median)} ${basisShortLabel(property.priceBasis)}` : "Insufficient clean peers")}
         ${comparisonMetric("Peer position", position.value)}
-        ${comparisonMetric(`${state.horizon}M scenario`, scenario.available ? `${scenario.direction} ${formatPercent(scenario.percentage, true)}` : "History unavailable", signalClass)}
+        ${comparisonMetric(signalLabel, signal.available ? `${signal.direction} ${formatPercent(signal.percentage, true)}` : analyticsExclusion(property), signalClass)}
         ${comparisonMetric("Road / facing", [road, facing].filter(Boolean).join(" · "))}
         ${comparisonMetric("Parking / finish", [parking, furnishing].filter(Boolean).join(" · "))}
         ${comparisonMetric("Indexed", formatDate(property.indexedAt))}
@@ -539,7 +747,10 @@ function drawDistribution(property) {
     drawEmptyChart(elements.distributionCanvas, 220, "INSUFFICIENT CLEAN PEER DATA");
     elements.chartBasis.textContent = "No cohort";
     elements.chartScale.innerHTML = "<span>--</span><span>--</span><span>--</span>";
-    elements.distributionNote.textContent = "A benchmark appears when a city, property type, purpose, and exact price basis have at least eight clean listings.";
+    elements.distributionNote.textContent = property
+      ? `This listing is not benchmarked: ${analyticsExclusion(property)}.`
+      : "Select a listing to inspect its like-for-like asking-price cohort.";
+    elements.distributionCanvas.setAttribute("aria-label", elements.distributionNote.textContent);
     return;
   }
 
@@ -608,12 +819,134 @@ function drawDistribution(property) {
   elements.distributionCanvas.setAttribute("aria-label", `${property.title} asking price at percentile ${stats.percentile} among ${stats.sampleCount} comparable listings.`);
 }
 
-function drawScenario(property) {
+function setScenarioPresentation(history) {
+  elements.analysisEyebrow.textContent = "EXPERIMENTAL SCENARIO";
+  elements.analysisTitle.textContent = "Asking-price direction";
+  elements.horizonControl.hidden = false;
+  elements.currentAskLabel.textContent = "Current ask";
+  elements.scenarioMidLabel.textContent = "Scenario midpoint";
+  elements.scenarioRangeLabel.textContent = "Scenario range";
+  elements.confidenceLabel.textContent = "Confidence";
+  elements.historyStatus.textContent = historyProgress(history);
+  elements.methodLabel.textContent = "Scenario method and limitations";
+  elements.methodCopy.textContent = "The signal measures how far this asking price sits from the median of comparable active listings, then applies a capped mean-reversion scenario. It is not a valuation, transaction-price forecast, or promise of future performance.";
+  elements.methodInputs.textContent = "Current asks, purpose, property type, city, and exact price basis.";
+  elements.methodMissing.textContent = "Closed sales, demand, financing, mature price history, and property-condition adjustments.";
+}
+
+function qualifyingHistoryPoints(history) {
+  if (!history || history.status !== "ready") return [];
+  const minimumSample = Number(history.readiness?.minimumDailySample) || 8;
+  return history.items.filter((item) => item.listingCount >= minimumSample);
+}
+
+function drawObservedHistory(property, history) {
+  const trend = historyTrendFor(property, history);
+  if (!trend.available) return false;
+
+  const { points, first, latest, percentage: change, direction, tone } = trend;
+  const medians = points.map((point) => point.medianPriceNpr);
+  const values = property.price === null ? medians : medians.concat(property.price);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const padding = Math.max(1, (rawMax - rawMin) * 0.12, rawMax * 0.02);
+  const min = Math.max(0, rawMin - padding);
+  const max = rawMax + padding;
+  const valueSpan = Math.max(1, max - min);
+  const startTime = new Date(first.date).valueOf();
+  const endTime = new Date(latest.date).valueOf();
+  const timeSpan = Math.max(1, endTime - startTime);
+  const { context, width, height } = setupCanvas(elements.scenarioCanvas, 170);
+  const pad = { top: 16, right: 12, bottom: 28, left: 12 };
+  const chartWidth = width - pad.left - pad.right;
+  const chartHeight = height - pad.top - pad.bottom;
+  const x = (date) => pad.left + ((new Date(date).valueOf() - startTime) / timeSpan) * chartWidth;
+  const y = (value) => pad.top + chartHeight - ((value - min) / valueSpan) * chartHeight;
+
+  context.fillStyle = "#f7f6f2";
+  context.fillRect(0, 0, width, height);
+  context.strokeStyle = "rgba(54, 60, 70, 0.12)";
+  context.lineWidth = 1;
+  for (let line = 0; line <= 3; line += 1) {
+    const lineY = pad.top + (chartHeight / 3) * line;
+    context.beginPath();
+    context.moveTo(pad.left, lineY);
+    context.lineTo(width - pad.right, lineY);
+    context.stroke();
+  }
+
+  if (property.price !== null) {
+    const askY = y(property.price);
+    context.setLineDash([4, 4]);
+    context.strokeStyle = "rgba(54, 60, 70, 0.55)";
+    context.beginPath();
+    context.moveTo(pad.left, askY);
+    context.lineTo(width - pad.right, askY);
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  context.fillStyle = "rgba(40, 111, 134, 0.12)";
+  context.beginPath();
+  points.forEach((point, index) => index === 0 ? context.moveTo(x(point.date), y(point.medianPriceNpr)) : context.lineTo(x(point.date), y(point.medianPriceNpr)));
+  context.lineTo(x(latest.date), height - pad.bottom);
+  context.lineTo(x(first.date), height - pad.bottom);
+  context.closePath();
+  context.fill();
+
+  context.strokeStyle = tone === "positive" ? "#16735a" : tone === "negative" ? "#ae453e" : "#286f86";
+  context.lineWidth = 2.5;
+  context.beginPath();
+  points.forEach((point, index) => index === 0 ? context.moveTo(x(point.date), y(point.medianPriceNpr)) : context.lineTo(x(point.date), y(point.medianPriceNpr)));
+  context.stroke();
+  context.fillStyle = "#363c46";
+  points.forEach((point) => {
+    context.beginPath();
+    context.arc(x(point.date), y(point.medianPriceNpr), 2.8, 0, Math.PI * 2);
+    context.fill();
+  });
+
+  context.fillStyle = "#5d6472";
+  context.font = "10px Helvetica, Arial, sans-serif";
+  context.fillText(formatDate(first.date).toUpperCase(), pad.left, height - 9);
+  const endLabel = formatDate(latest.date).toUpperCase();
+  const endWidth = context.measureText(endLabel).width;
+  context.fillText(endLabel, width - pad.right - endWidth, height - 9);
+
+  elements.analysisEyebrow.textContent = "OBSERVED ASK HISTORY";
+  elements.analysisTitle.textContent = "Peer median trend";
+  elements.horizonControl.hidden = true;
+  elements.scenarioProperty.textContent = property.title;
+  const historyWindowDays = Number(history.readiness?.historyWindowDays)
+    || Math.round((new Date(latest.date) - new Date(first.date)) / 86_400_000) + 1;
+  elements.scenarioPeer.textContent = `${points.length} qualifying days · ${historyWindowDays}-day span · latest n=${latest.listingCount}`;
+  elements.scenarioSignal.className = `scenario-signal is-${tone}`;
+  elements.scenarioDirection.textContent = direction.toUpperCase();
+  elements.scenarioChange.textContent = formatPercent(change, true);
+  elements.currentAskLabel.textContent = "Current ask";
+  elements.currentAsk.textContent = formatAsk(property);
+  elements.scenarioMidLabel.textContent = "Latest peer median";
+  elements.scenarioMid.textContent = `${formatCurrency(latest.medianPriceNpr)} ${basisShortLabel(property.priceBasis)}`;
+  elements.scenarioRangeLabel.textContent = "Observed median range";
+  elements.scenarioRange.textContent = `${formatCurrency(Math.min(...medians))}–${formatCurrency(Math.max(...medians))}`;
+  elements.confidenceLabel.textContent = "Coverage";
+  elements.confidence.textContent = `${points.length} days · latest n=${latest.listingCount}`;
+  elements.historyStatus.textContent = "This cohort has met the history threshold. The line shows observed asking-price medians, not closed-sale values.";
+  elements.methodLabel.textContent = "History method and limitations";
+  elements.methodCopy.textContent = "Each point is the median of the latest clean, active ask per listing on that UTC day after duplicate and robust-outlier screening. This is observed listing history, not a valuation or transaction-price index.";
+  elements.methodInputs.textContent = "Daily asks with the same purpose, city, property type, and exact price basis; only days meeting the displayed minimum sample are plotted.";
+  elements.methodMissing.textContent = "Closed-sale prices, demand, financing, property condition, listing withdrawals, and days without a successful source observation.";
+  elements.scenarioCanvas.setAttribute("aria-label", `Observed peer median asking prices for ${property.city} ${property.type} listings from ${formatDate(first.date)} to ${formatDate(latest.date)} changed ${formatPercent(change, true)}. Dotted line marks the selected property's current ask.`);
+  return true;
+}
+
+function drawScenario(property, history) {
+  setScenarioPresentation(history);
   const scenario = scenarioFor(property);
   if (!property || !scenario.available) {
-    drawEmptyChart(elements.scenarioCanvas, 170, "HISTORY UNAVAILABLE · PEER SCENARIO ONLY");
+    drawEmptyChart(elements.scenarioCanvas, 170, "PEER SCENARIO UNAVAILABLE");
     elements.scenarioProperty.textContent = property?.title || "No property selected";
-    elements.scenarioPeer.textContent = "At least 8 clean peers are required";
+    elements.scenarioPeer.textContent = property ? analyticsExclusion(property) : "Select a listing to begin";
     elements.scenarioSignal.className = "scenario-signal is-neutral";
     elements.scenarioDirection.textContent = "NO SIGNAL";
     elements.scenarioChange.textContent = "--";
@@ -621,6 +954,9 @@ function drawScenario(property) {
     elements.scenarioMid.textContent = "--";
     elements.scenarioRange.textContent = "--";
     elements.confidence.textContent = "Insufficient";
+    if (!property) elements.historyStatus.textContent = "Select a listing to check its exact-cohort history.";
+    else elements.historyStatus.textContent = `Observed history and the peer scenario are withheld for this listing: ${analyticsExclusion(property)}.`;
+    elements.scenarioCanvas.setAttribute("aria-label", property ? `No experimental scenario for ${property.title}: ${analyticsExclusion(property)}.` : "No property selected for an experimental scenario.");
     return;
   }
 
@@ -715,12 +1051,18 @@ function renderKpis(properties, focus) {
   }
 }
 
-function renderAnalytics(properties) {
+function renderAnalytics(properties, { loadHistory = true } = {}) {
   const focus = focusedProperty(properties);
   if (focus && state.focusedId !== focus.id) state.focusedId = focus.id;
   renderKpis(properties, focus);
   drawDistribution(focus);
-  drawScenario(focus);
+  let history = historyFor(focus);
+  if (focus && peerStats(focus) && !history && state.feedMode === "snapshot") {
+    state.history.set(cohortKey(focus), { status: "unavailable", readiness: {}, items: [] });
+    history = historyFor(focus);
+  }
+  if (!drawObservedHistory(focus, history)) drawScenario(focus, history);
+  if (loadHistory && focus && peerStats(focus)) void ensureHistory(focus);
 }
 
 function renderAll({ resetScroll = false } = {}) {
@@ -742,7 +1084,7 @@ function setFocus(id) {
   renderAnalytics(filteredProperties());
 }
 
-function toggleComparison(id) {
+function toggleComparison(id, { restoreInventoryFocus = false } = {}) {
   const existingIndex = state.selectedIds.indexOf(id);
   if (existingIndex >= 0) {
     state.selectedIds.splice(existingIndex, 1);
@@ -754,6 +1096,14 @@ function toggleComparison(id) {
     state.focusedId = id;
   }
   renderAll();
+  if (restoreInventoryFocus) {
+    window.requestAnimationFrame(() => {
+      const target = elements.inventory.querySelector(`[data-toggle-compare="${CSS.escape(id)}"]`)
+        || elements.inventory.querySelector("[data-toggle-compare]")
+        || document.querySelector("[data-clear-comparison]");
+      target?.focus();
+    });
+  }
 }
 
 function syncPurposeButtons() {
@@ -775,7 +1125,7 @@ function syncHorizonButtons() {
 function resetFilters() {
   state.purpose = "buy";
   state.city = "all";
-  state.type = "House";
+  state.type = state.properties.some((property) => property.type === "House") ? "House" : "all";
   state.basis = "all";
   state.sort = "signal-high";
   state.search = "";
@@ -808,7 +1158,9 @@ document.querySelectorAll("[data-horizon]").forEach((button) => {
   button.addEventListener("click", () => {
     state.horizon = Number(button.dataset.horizon);
     syncHorizonButtons();
-    renderAll();
+    renderInventory(filteredProperties());
+    renderComparison();
+    renderAnalytics(filteredProperties());
   });
 });
 
@@ -844,7 +1196,7 @@ document.querySelector("[data-reset]").addEventListener("click", resetFilters);
 elements.inventory.addEventListener("click", (event) => {
   const compareButton = event.target.closest("[data-toggle-compare]");
   if (compareButton) {
-    toggleComparison(compareButton.dataset.toggleCompare);
+    toggleComparison(compareButton.dataset.toggleCompare, { restoreInventoryFocus: true });
     return;
   }
   const focusButton = event.target.closest("[data-focus-property]");
@@ -853,7 +1205,7 @@ elements.inventory.addEventListener("click", (event) => {
 
 elements.comparisonGrid.addEventListener("click", (event) => {
   const removeButton = event.target.closest("[data-remove-comparison]");
-  if (removeButton) toggleComparison(removeButton.dataset.removeComparison);
+  if (removeButton) toggleComparison(removeButton.dataset.removeComparison, { restoreInventoryFocus: true });
 });
 
 document.querySelector("[data-clear-comparison]").addEventListener("click", () => {
@@ -866,7 +1218,7 @@ document.querySelector("[data-method-open]").addEventListener("click", (event) =
   const open = panel.hidden;
   panel.hidden = !open;
   event.currentTarget.setAttribute("aria-expanded", String(open));
-  event.currentTarget.querySelector("span").textContent = open ? "−" : "+";
+  event.currentTarget.querySelector("span[aria-hidden]").textContent = open ? "−" : "+";
 });
 
 window.addEventListener("resize", () => {
@@ -875,17 +1227,22 @@ window.addEventListener("resize", () => {
 });
 
 async function initialise() {
-  elements.type.value = state.type;
   try {
     const payload = await fetchListings();
     state.properties = payload.items.map(normaliseProperty).filter((property) => property.id);
     state.asOf = payload.asOf || state.properties.map((property) => property.indexedAt).filter(Boolean).sort().at(-1) || null;
     state.feedMode = payload.feedMode;
+    state.freshness = payload.freshness && typeof payload.freshness === "object" ? payload.freshness : null;
     state.sourceCount = Array.isArray(payload.sources) && payload.sources.length
       ? payload.sources.length
       : new Set(state.properties.map((property) => property.sourceName)).size;
-    state.analytics = buildAnalytics(state.properties);
+    const analytics = buildAnalytics(state.properties);
+    state.analytics = analytics.groups;
+    state.analyticsEligibleIds = analytics.analyticsEligibleIds;
+    state.duplicateIds = analytics.duplicateIds;
+    state.outlierIds = analytics.outlierIds;
     populateCities();
+    populateTypes();
     chooseInitialProperties();
     setFeedState();
     renderAll();

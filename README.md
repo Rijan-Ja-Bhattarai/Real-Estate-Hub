@@ -69,6 +69,9 @@ Every successful refresh now records a privacy-safe asking-price observation wit
 or contact fields. `GET /api/market/series` returns daily medians and listing counts for exact cohorts, with optional
 `purpose`, `city`, `type`, `price_basis`, and `days` filters. Its status remains `collecting` until a cohort spans at
 least 30 days, has 14 qualifying observed days, and has eight clean active asks on each qualifying day.
+The market board reports that collection progress beside its experimental scenario. Once an exact cohort is ready,
+the panel automatically switches to its observed, deduplicated, outlier-screened median-ask trend and labels it as
+listing history rather than closed-sale evidence.
 
 ## Build and test
 

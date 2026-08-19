@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 from datetime import UTC, datetime, timedelta
@@ -16,8 +17,8 @@ import httpx
 
 from backend.app import app
 from backend.config import DB_PATH, EXPORT_PATH
-from backend.db import connect, database_stats, initialise, list_market_series, upsert_listings
-from backend.ingest import record_is_safe, seed_from_snapshot
+from backend.db import connect, database_stats, initialise, list_listings, list_market_series, upsert_listings
+from backend.ingest import export_snapshot, record_is_safe, seed_from_snapshot
 from backend.sources.base import ListingRecord
 from backend.sources.lalpurja import LalpurjaSource
 
@@ -82,6 +83,7 @@ async def main() -> None:
                 "price_basis",
                 "is_active",
                 "is_clean",
+                "duplicate_fingerprint",
             } <= observation_columns
             assert not any(
                 private_name in column
@@ -213,7 +215,7 @@ async def main() -> None:
                 for item in ready_payload["items"]
             )
 
-            inactive_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+            inactive_at = (history_now + timedelta(seconds=1)).isoformat()
             upsert_listings(
                 history_records[:1],
                 DB_PATH,
@@ -246,6 +248,113 @@ async def main() -> None:
             assert post_deactivation["status"] == "collecting"
             assert post_deactivation["items"][-1]["listingCount"] == 1
 
+            analytics_records = [
+                ListingRecord(
+                    id=f"nepal-homes:analytics-smoke-{index}",
+                    source_slug="nepal-homes",
+                    external_id=f"analytics-smoke-{index}",
+                    source_url=f"https://example.com/analytics-smoke/{index}",
+                    title=f"Analytics test house {index}",
+                    purpose="buy",
+                    property_type="House",
+                    price_npr=10_000_000 + index * 100_000,
+                    price_basis="total",
+                    price_label=f"NPR {10_000_000 + index * 100_000}",
+                    location_name="Analytics City",
+                    locality="Analytics Ward",
+                    city="Analytics City",
+                    area_label="4 aana",
+                    raw_facts={"quality_flags": []},
+                )
+                for index in range(8)
+            ]
+            analytics_records.extend(
+                (
+                    ListingRecord(
+                        id="ghar-bazar:analytics-smoke-duplicate",
+                        source_slug="ghar-bazar",
+                        external_id="analytics-smoke-duplicate",
+                        source_url="https://example.com/analytics-smoke/duplicate",
+                        title="Analytics test house 0",
+                        purpose="buy",
+                        property_type="House",
+                        price_npr=10_000_000,
+                        price_basis="total",
+                        price_label="NPR 10000000",
+                        location_name="Analytics City",
+                        locality="Analytics Ward",
+                        city="Analytics City",
+                        area_label="4 aana",
+                        raw_facts={"quality_flags": []},
+                    ),
+                    ListingRecord(
+                        id="kantipur-real-estate:analytics-smoke-outlier",
+                        source_slug="kantipur-real-estate",
+                        external_id="analytics-smoke-outlier",
+                        source_url="https://example.com/analytics-smoke/outlier",
+                        title="Analytics extreme test house",
+                        purpose="buy",
+                        property_type="House",
+                        price_npr=1_000_000_000,
+                        price_basis="total",
+                        price_label="NPR 1000000000",
+                        location_name="Analytics City",
+                        locality="Analytics Ward",
+                        city="Analytics City",
+                        area_label="4 aana",
+                        raw_facts={"quality_flags": []},
+                    ),
+                    ListingRecord(
+                        id="real-estate-in-nepal:analytics-smoke-euro",
+                        source_slug="real-estate-in-nepal",
+                        external_id="analytics-smoke-euro",
+                        source_url="https://example.com/analytics-smoke/euro",
+                        title="Analytics foreign-currency test house",
+                        purpose="buy",
+                        property_type="House",
+                        price_npr=10_400_000,
+                        price_basis="total",
+                        price_label="EUR 10400000",
+                        location_name="Analytics City",
+                        locality="Analytics Ward",
+                        city="Analytics City",
+                        area_label="4 aana",
+                        raw_facts={"quality_flags": [], "source_price_text": "EUR 10400000"},
+                    ),
+                )
+            )
+            upsert_listings(analytics_records, DB_PATH, fetched_at=history_now.isoformat())
+            analytics_response = await client.get(
+                "/api/market/series",
+                params={
+                    "purpose": "buy",
+                    "city": "Analytics City",
+                    "type": "House",
+                    "price_basis": "total",
+                    "days": 7,
+                },
+            )
+            analytics_payload = analytics_response.json()
+            assert analytics_response.status_code == 200
+            assert len(analytics_payload["items"]) == 1
+            assert analytics_payload["items"][0]["listingCount"] == 8
+            assert analytics_payload["items"][0]["medianPriceNpr"] == 10_350_000
+            with connect() as connection:
+                duplicate_fingerprints = connection.execute(
+                    """
+                    SELECT duplicate_fingerprint
+                    FROM listing_price_observations
+                    WHERE listing_id IN (
+                        'nepal-homes:analytics-smoke-0',
+                        'ghar-bazar:analytics-smoke-duplicate'
+                    )
+                    ORDER BY listing_id
+                    """
+                ).fetchall()
+            assert len(duplicate_fingerprints) == 2
+            assert duplicate_fingerprints[0]["duplicate_fingerprint"]
+            assert len({row["duplicate_fingerprint"] for row in duplicate_fingerprints}) == 1
+
     redacted = LalpurjaSource._short_excerpt("Call +977 981-234-5678 or owner@example.com for a viewing")
     assert "981" not in redacted and "owner@" not in redacted
     unsafe_record = ListingRecord(
@@ -264,6 +373,9 @@ async def main() -> None:
         city="Kathmandu",
         area_label="Area on source",
     )
+    assert not record_is_safe(unsafe_record, "test-source")
+    unsafe_record.title = "Safe public title"
+    unsafe_record.raw_facts = {"seller": {"email": "owner@example.com", "phone": "9812345678"}}
     assert not record_is_safe(unsafe_record, "test-source")
 
     with TemporaryDirectory(prefix="nei-cold-start-") as directory:
@@ -338,7 +450,7 @@ async def main() -> None:
                 row["listing_id"]: row
                 for row in connection.execute(
                     """
-                    SELECT listing_id, observed_at, is_active, is_clean
+                    SELECT listing_id, observed_at, is_active, is_clean, duplicate_fingerprint
                     FROM listing_price_observations
                     WHERE listing_id IN (?, ?, ?)
                     """,
@@ -353,6 +465,7 @@ async def main() -> None:
         assert backfilled_rows[dirty_id]["is_clean"] == 0
         assert backfilled_rows[fallback_id]["is_active"] == 1
         assert backfilled_rows[fallback_id]["is_clean"] == 1
+        assert all(row["duplicate_fingerprint"] for row in backfilled_rows.values())
         fallback_observed_at = datetime.fromisoformat(backfilled_rows[fallback_id]["observed_at"])
         assert abs((datetime.now(UTC) - fallback_observed_at).total_seconds()) < 5
         migrated_series, migrated_as_of = list_market_series(days=365, path=migration_database)
@@ -363,6 +476,97 @@ async def main() -> None:
                 connection.execute("SELECT COUNT(*) FROM listing_price_observations").fetchone()[0]
             )
         assert second_initialise_count == backfilled_count
+        with connect(migration_database) as connection:
+            connection.execute(
+                "ALTER TABLE listing_price_observations DROP COLUMN duplicate_fingerprint"
+            )
+        initialise(migration_database)
+        with connect(migration_database) as connection:
+            migrated_observation_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(listing_price_observations)")
+            }
+            migrated_fingerprint_count = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM listing_price_observations
+                    WHERE duplicate_fingerprint <> ''
+                    """
+                ).fetchone()[0]
+            )
+        assert "duplicate_fingerprint" in migrated_observation_columns
+        assert migrated_fingerprint_count == backfilled_count
+
+    with TemporaryDirectory(prefix="nei-full-export-") as directory:
+        export_database = Path(directory) / "real_estate.db"
+        export_path = Path(directory) / "listings.json"
+        initialise(export_database)
+        export_records = [
+            ListingRecord(
+                id=f"nepal-homes:export-smoke-{index}",
+                source_slug="nepal-homes",
+                external_id=f"export-smoke-{index}",
+                source_url=f"https://example.com/export-smoke/{index}",
+                title=f"Export test property {index}",
+                purpose="buy",
+                property_type="House",
+                price_npr=10_000_000 + index,
+                price_basis="total",
+                price_label=f"NPR {10_000_000 + index}",
+                location_name="Export City",
+                locality="Export Ward",
+                city="Export City",
+                area_label="4 aana",
+            )
+            for index in range(251)
+        ]
+        upsert_listings(export_records, export_database)
+        exported = export_snapshot(export_path, export_database)
+        written_export = json.loads(export_path.read_text(encoding="utf-8"))
+        assert exported["total"] == exported["limit"] == len(exported["items"]) == 251
+        assert written_export["total"] == len(written_export["items"]) == 251
+
+    with TemporaryDirectory(prefix="nei-legacy-basis-") as directory:
+        legacy_database = Path(directory) / "real_estate.db"
+        legacy_snapshot = Path(directory) / "listings.json"
+        legacy_snapshot.write_text(
+            json.dumps(
+                {
+                    "asOf": datetime.now(UTC).isoformat(),
+                    "items": [
+                        {
+                            "id": "nepal-homes:legacy-land-total",
+                            "sourceUrl": "https://example.com/legacy-land-total",
+                            "title": "Legacy land total",
+                            "purpose": "buy",
+                            "type": "Land",
+                            "price": 20_000_000,
+                            "priceLabel": "NPR 20000000",
+                            "location": "Legacy City",
+                            "city": "Legacy City",
+                        },
+                        {
+                            "id": "nepal-homes:legacy-private-contact",
+                            "sourceUrl": "https://example.com/legacy-private-contact",
+                            "title": "Legacy unsafe record",
+                            "purpose": "buy",
+                            "type": "House",
+                            "price": 20_000_000,
+                            "location": "Legacy City",
+                            "city": "Legacy City",
+                            "facts": {"seller_email": "owner@example.com"},
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        initialise(legacy_database)
+        assert seed_from_snapshot(legacy_snapshot, legacy_database) == 1
+        legacy_items, legacy_total = list_listings(path=legacy_database)
+        assert legacy_total == 1
+        assert legacy_items[0]["priceBasis"] == "total"
 
     print(
         "API smoke test passed: HTTP boundary, SQLite cold start, market history, filters, "

@@ -89,6 +89,19 @@ async function waitForInventory() {
   throw new Error("The market inventory did not finish loading with its initial comparison set.");
 }
 
+async function waitForHistoryState(expected = "settled") {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const state = await evaluate(`({
+      eyebrow: document.querySelector('[data-analysis-eyebrow]')?.textContent.trim(),
+      status: document.querySelector('[data-history-status]')?.textContent.trim()
+    })`);
+    if (expected === "observed" && state.eyebrow === "OBSERVED ASK HISTORY") return;
+    if (expected === "settled" && state.status && !state.status.startsWith("Checking")) return;
+    await delay(100);
+  }
+  throw new Error(`The market history state did not become ${expected}.`);
+}
+
 function assert(condition, message) {
   if (!condition) failures.push(message);
 }
@@ -114,6 +127,7 @@ try {
     if (message.method === "Log.entryAdded" && message.params.entry.level === "error") {
       const entry = message.params.entry;
       if (entry.url?.includes("/api/listings?") && entry.text.includes("404")) return;
+      if (entry.url?.includes("/api/market/series?") && entry.text.includes("404")) return;
       runtimeErrors.push(`Browser error: ${entry.text}${entry.url ? ` (${entry.url})` : ""}`);
     }
   });
@@ -121,6 +135,29 @@ try {
   await command("Page.enable");
   await command("Runtime.enable");
   await command("Log.enable");
+  const collectingHistoryScript = await command("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, options) => {
+        const href = typeof input === 'string' ? input : input.url;
+        const url = new URL(href, location.origin);
+        if (url.pathname !== '/api/market/series') return nativeFetch(input, options);
+        return Promise.resolve(new Response(JSON.stringify({
+          items: [],
+          status: 'collecting',
+          readiness: {
+            ready: false,
+            historyWindowDays: 1,
+            qualifyingDays: 1,
+            minimumWindowDays: 30,
+            minimumObservedDays: 14,
+            minimumDailySample: 8
+          },
+          asOf: null
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      };
+    })();`,
+  });
   await command("Emulation.setDeviceMetricsOverride", {
     width: 1440,
     height: 1100,
@@ -129,6 +166,7 @@ try {
   });
   await command("Page.navigate", { url: marketUrl });
   await waitForInventory();
+  await waitForHistoryState();
 
   const initial = await evaluate(`(() => {
     const rows = [...document.querySelectorAll('.inventory-row')];
@@ -145,6 +183,10 @@ try {
       compareCount: document.querySelector('[data-compare-count]').textContent.trim(),
       comparisonStatus: document.querySelector('[data-comparison-status]').textContent.trim(),
       selectedRows: document.querySelectorAll('[data-toggle-compare][aria-pressed="true"]').length,
+      feedState: document.querySelector('[data-feed-state]').textContent.trim(),
+      analysisEyebrow: document.querySelector('[data-analysis-eyebrow]').textContent.trim(),
+      historyStatus: document.querySelector('[data-history-status]').textContent.trim(),
+      propertyTypes: [...document.querySelector('[data-type]').options].map((option) => option.value),
       bodyOverflow: document.body.scrollWidth > document.body.clientWidth + 2,
       documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2
     };
@@ -159,6 +201,15 @@ try {
   assert(initial.compareCount === "2 / 4 compared", `Unexpected initial comparison count: ${initial.compareCount}.`);
   assert(initial.comparisonStatus === "2 listings pinned", "Initial comparison status is incorrect.");
   assert(initial.selectedRows === 2, `Expected two selected inventory rows, found ${initial.selectedRows}.`);
+  const liveFeed = initial.feedState.includes("Live API");
+  assert(liveFeed || initial.feedState.includes("Deployable snapshot"), `Unknown feed mode: ${initial.feedState}.`);
+  assert(
+    initial.historyStatus.includes("History collecting")
+      || initial.historyStatus.includes("met the history threshold")
+      || initial.historyStatus.includes("unavailable in this static snapshot"),
+    `Expected a settled history state, found: ${initial.historyStatus}.`,
+  );
+  assert(new Set(initial.propertyTypes).size === initial.propertyTypes.length && initial.propertyTypes.includes("House"), "The data-derived property options are missing, empty, or duplicated.");
   assert(!initial.bodyOverflow && !initial.documentOverflow, "Desktop viewport has horizontal overflow.");
 
   const comparisonSelection = await evaluate(`(() => {
@@ -207,6 +258,30 @@ try {
   assert(horizon.metricLabels.includes("24M scenario"), "Comparison metrics did not update to the 24-month horizon.");
   assert(horizon.inventoryNotes.some((note) => note.startsWith("24M")), "Inventory signals did not update to the 24-month horizon.");
 
+  const pinLimit = await evaluate(`(() => {
+    const unselected = () => [...document.querySelectorAll('[data-toggle-compare][aria-pressed="false"]')];
+    unselected()[0]?.click();
+    unselected()[0]?.click();
+    const fifth = unselected()[0];
+    fifth?.click();
+    const atLimit = {
+      cards: document.querySelectorAll('.comparison-card').length,
+      count: document.querySelector('[data-compare-count]').textContent.trim(),
+      toast: document.querySelector('[data-toast]').textContent.trim(),
+      fifthPressed: fifth?.getAttribute('aria-pressed')
+    };
+    document.querySelector('[data-clear-comparison]').click();
+    return {
+      atLimit,
+      afterClear: document.querySelectorAll('.comparison-card').length,
+      clearCount: document.querySelector('[data-compare-count]').textContent.trim(),
+      placeholders: document.querySelectorAll('.comparison-placeholder').length
+    };
+  })()`);
+  assert(pinLimit.atLimit.cards === 4 && pinLimit.atLimit.count === "4 / 4 compared", "The comparison board did not reach its four-property limit.");
+  assert(pinLimit.atLimit.toast.includes("Four listings are already pinned") && pinLimit.atLimit.fifthPressed === "false", "A fifth property was not rejected with an explanation.");
+  assert(pinLimit.afterClear === 0 && pinLimit.clearCount === "0 / 4 compared" && pinLimit.placeholders === 4, "Clear did not reset all comparison slots.");
+
   const filtered = await evaluate(`(() => {
     const type = document.querySelector('[data-type]');
     type.value = 'all';
@@ -236,13 +311,15 @@ try {
       rentPressed: rent.getAttribute('aria-pressed'),
       rentCount: rentRows.length,
       rentalRows: rentRows.every((row) => row.querySelector('.inventory-identity small').textContent.includes('· rent')),
-      basisOptions: [...document.querySelector('[data-basis]').options].map((option) => option.value)
+      basisOptions: [...document.querySelector('[data-basis]').options].map((option) => option.value),
+      zeroPrices: [...document.querySelectorAll('.inventory-price strong')].filter((node) => node.textContent.trim() === 'रु 0').length
     };
   })()`);
   assert(filtered.allMarketCount >= initial.rows, "All-property filter unexpectedly reduced the default inventory.");
   assert(Boolean(filtered.selectedCity) && filtered.cityCount > 0 && filtered.cityCount < filtered.allMarketCount, "City filtering did not narrow the inventory.");
   assert(filtered.rentPressed === "true" && filtered.rentCount > 0 && filtered.rentalRows, "Rent filtering did not return rental inventory.");
   assert(filtered.basisOptions.includes("monthly"), "Rental filter did not expose the monthly price basis.");
+  assert(filtered.zeroPrices === 0, "A missing asking price was rendered as रु 0.");
 
   const method = await evaluate(`(() => {
     const button = document.querySelector('[data-method-open]');
@@ -291,6 +368,89 @@ try {
     assert(canvas.drawnSamples > 5 && canvas.sampledPixels.length > 0, `Canvas ${index + 1} has no sampled pixels distinct from its background.`);
   });
 
+  await command("Page.removeScriptToEvaluateOnNewDocument", { identifier: collectingHistoryScript.identifier });
+  await command("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, options) => {
+        const href = typeof input === 'string' ? input : input.url;
+        const url = new URL(href, location.origin);
+        if (url.pathname === '/api/listings') {
+          return nativeFetch('/data/listings.json', options).then(async (response) => {
+            const payload = await response.json();
+            const expanded = [...payload.items];
+            const seed = expanded[0];
+            while (seed && expanded.length < 251) {
+              const index = expanded.length;
+              expanded.push({
+                ...seed,
+                id: seed.id + '-pagination-smoke-' + index,
+                title: seed.title + ' pagination smoke ' + index,
+                sourceUrl: seed.sourceUrl + '#pagination-smoke-' + index
+              });
+            }
+            const offset = Number(url.searchParams.get('offset') || 0);
+            const limit = Number(url.searchParams.get('limit') || 250);
+            payload.items = expanded.slice(offset, offset + limit);
+            payload.total = expanded.length;
+            payload.limit = limit;
+            payload.offset = offset;
+            payload.mode = 'live-database';
+            payload.freshness = { state: 'stale', sourceErrors: ['Synthetic source alert'] };
+            return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          });
+        }
+        if (url.pathname !== '/api/market/series') return nativeFetch(input, options);
+        const dates = ['2026-07-01','2026-07-03','2026-07-05','2026-07-07','2026-07-09','2026-07-11','2026-07-13','2026-07-15','2026-07-17','2026-07-19','2026-07-21','2026-07-23','2026-07-25','2026-07-30'];
+        const items = dates.map((date, index) => ({
+          date,
+          purpose: url.searchParams.get('purpose'),
+          city: url.searchParams.get('city'),
+          propertyType: url.searchParams.get('type'),
+          priceBasis: url.searchParams.get('price_basis'),
+          medianPriceNpr: 20000000 + index * 100000,
+          listingCount: 8 + index % 3
+        }));
+        return Promise.resolve(new Response(JSON.stringify({
+          items,
+          status: 'ready',
+          readiness: {
+            ready: true,
+            historyWindowDays: 30,
+            qualifyingDays: 14,
+            minimumWindowDays: 30,
+            minimumObservedDays: 14,
+            minimumDailySample: 8
+          },
+          asOf: '2026-07-30T12:00:00+00:00'
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      };
+    })();`,
+  });
+  await command("Page.reload", { ignoreCache: true });
+  await waitForInventory();
+  await waitForHistoryState("observed");
+  const observedHistory = await evaluate(`({
+    eyebrow: document.querySelector('[data-analysis-eyebrow]').textContent.trim(),
+    title: document.querySelector('[data-analysis-title]').textContent.trim(),
+    feedState: document.querySelector('[data-feed-state]').textContent.trim(),
+    feedClass: document.querySelector('[data-feed-state]').className,
+    coverage: document.querySelector('[data-coverage]').textContent.trim(),
+    horizonHidden: document.querySelector('[data-horizon-control]').hidden,
+    chartLabel: document.querySelector('[data-scenario-chart]').getAttribute('aria-label'),
+    status: document.querySelector('[data-history-status]').textContent.trim(),
+    method: document.querySelector('[data-method-panel]').textContent,
+    coverageLabel: document.querySelector('[data-confidence-label]').textContent.trim(),
+    inventorySignals: [...document.querySelectorAll('.inventory-scenario span')].map((node) => node.textContent.trim()),
+    comparisonLabels: [...document.querySelectorAll('.comparison-metrics dt')].map((node) => node.textContent.trim())
+  })`);
+  assert(observedHistory.eyebrow === "OBSERVED ASK HISTORY" && observedHistory.title === "Peer median trend", "A ready cohort did not replace the scenario with observed history.");
+  assert(observedHistory.feedState.includes("Live API · 251 listings"), `The live paginated inventory was incomplete or mislabeled: ${observedHistory.feedState}.`);
+  assert(observedHistory.feedClass.includes("is-stale") && observedHistory.coverage.includes("1 source alert"), "A degraded source state was not surfaced in the feed badge.");
+  assert(observedHistory.horizonHidden && observedHistory.chartLabel.startsWith("Observed peer median asking prices"), "Observed history did not update the chart and controls.");
+  assert(observedHistory.status.includes("met the history threshold") && observedHistory.method.includes("not a valuation") && observedHistory.coverageLabel === "Coverage", "Observed-history disclosure is incomplete.");
+  assert(observedHistory.inventorySignals.some((label) => label.startsWith("observed")) && observedHistory.comparisonLabels.includes("Observed median trend"), "Observed history did not replace matching tape and comparison signals.");
+
   await command("Emulation.setDeviceMetricsOverride", {
     width: 390,
     height: 844,
@@ -313,7 +473,7 @@ try {
   if (failures.length) {
     throw new Error(failures.map((failure) => `- ${failure}`).join("\n"));
   }
-  console.log("Market smoke test passed: defaults, comparisons, filters, horizon, method panel, canvas pixels, and responsive overflow.");
+  console.log("Market smoke test passed: feed modes, comparison limit, filters, scenario disclosure, observed history, canvas pixels, and responsive overflow.");
 } finally {
   if (socket?.readyState === WebSocket.OPEN) socket.close();
   browser.kill("SIGTERM");
