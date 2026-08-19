@@ -13,8 +13,11 @@ Open `http://localhost:4173`. FastAPI serves the site and these read routes:
 
 - `GET /api/health`
 - `GET /api/listings`
+- `GET /api/market/series`
 - `GET /api/sources`
 - Interactive API documentation at `/docs`
+
+The dedicated market workspace is available at `http://localhost:4173/market`.
 
 Useful listing query parameters are `purpose`, `city`, `type`, `max_price`, `source`, `limit`, and `offset`.
 
@@ -51,6 +54,22 @@ Each listing has a map handoff. If a source does not provide coordinates, the da
 
 Unit-rate prices are stored only when the publisher explicitly supplies a basis such as per-aana, per-ropani, or per-square-foot; they are excluded from total-budget comparisons. Unlabelled sale prices remain totals and rentals default to monthly unless the source says otherwise. Visitors should still confirm all amounts and units on the original listing.
 
+## Market board and price history
+
+The `/market` workspace renders the full filtered inventory as a compact listing tape, lets a user pin up to four
+properties, and compares their asking prices, source facts, peer positions, and scenario signals. Benchmarks use
+only the same purpose, city, property type, and exact price basis. Duplicate fingerprints, flagged prices,
+foreign-currency records, and robust price outliers are excluded from analytics but remain visible as listings.
+
+The scenario is a capped mean-reversion calculation against current asking-price peers. It is an experimental
+research signal, not a valuation, closed-sale forecast, or promise of future performance. The interface shows the
+cohort size, confidence, range, method, and missing inputs beside the result.
+
+Every successful refresh now records a privacy-safe asking-price observation without titles, descriptions, URLs,
+or contact fields. `GET /api/market/series` returns daily medians and listing counts for exact cohorts, with optional
+`purpose`, `city`, `type`, `price_basis`, and `days` filters. Its status remains `collecting` until a cohort spans at
+least 30 days, has 14 qualifying observed days, and has eight clean active asks on each qualifying day.
+
 ## Build and test
 
 ```bash
@@ -65,4 +84,5 @@ Run the browser smoke test while either `npm start` or a static server is listen
 
 ```bash
 npm run test:browser
+npm run test:market
 ```

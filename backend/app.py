@@ -13,11 +13,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import ENABLE_SCHEDULER, EXPORT_PATH, REFRESH_HOURS, REFRESH_TOKEN, ROOT_DIR
-from backend.db import database_stats, initialise, list_listings, list_sources
+from backend.db import database_stats, initialise, list_listings, list_market_series, list_sources
 from backend.ingest import export_snapshot, refresh_all, seed_from_snapshot
 
 
 LOGGER = logging.getLogger("nepal_estate_index")
+MARKET_MINIMUM_WINDOW_DAYS = 30
+MARKET_MINIMUM_OBSERVED_DAYS = 14
+MARKET_MINIMUM_DAILY_SAMPLE = 8
 
 
 def report_refresh_failures(results: list[dict[str, object]]) -> None:
@@ -41,6 +44,46 @@ def data_freshness() -> dict[str, object]:
         "state": "stale" if stale else "fresh",
         "ageHours": round(age_hours, 2) if age_hours is not None else None,
         "sourceErrors": active_errors,
+    }
+
+
+def market_readiness(items: list[dict[str, object]]) -> dict[str, object]:
+    cohorts: dict[tuple[object, object, object, object], list[dict[str, object]]] = {}
+    for item in items:
+        key = (item["purpose"], item["city"], item["propertyType"], item["priceBasis"])
+        cohorts.setdefault(key, []).append(item)
+
+    ready_cohorts = 0
+    observed_days = 0
+    history_window_days = 0
+    qualifying_days = 0
+    for cohort_items in cohorts.values():
+        dates = sorted(datetime.fromisoformat(str(item["date"])).date() for item in cohort_items)
+        cohort_window = (dates[-1] - dates[0]).days + 1
+        cohort_qualifying_days = sum(
+            int(item["listingCount"]) >= MARKET_MINIMUM_DAILY_SAMPLE for item in cohort_items
+        )
+        cohort_ready = (
+            cohort_window >= MARKET_MINIMUM_WINDOW_DAYS
+            and cohort_qualifying_days >= MARKET_MINIMUM_OBSERVED_DAYS
+        )
+        ready_cohorts += int(cohort_ready)
+        observed_days = max(observed_days, len(dates))
+        history_window_days = max(history_window_days, cohort_window)
+        qualifying_days = max(qualifying_days, cohort_qualifying_days)
+
+    ready = bool(cohorts) and ready_cohorts == len(cohorts)
+    return {
+        "status": "ready" if ready else "collecting",
+        "ready": ready,
+        "cohortCount": len(cohorts),
+        "readyCohortCount": ready_cohorts,
+        "observedDays": observed_days,
+        "historyWindowDays": history_window_days,
+        "qualifyingDays": qualifying_days,
+        "minimumWindowDays": MARKET_MINIMUM_WINDOW_DAYS,
+        "minimumObservedDays": MARKET_MINIMUM_OBSERVED_DAYS,
+        "minimumDailySample": MARKET_MINIMUM_DAILY_SAMPLE,
     }
 
 
@@ -151,6 +194,38 @@ async def listings(
     }
 
 
+@app.get("/api/market/series")
+async def market_series(
+    purpose: Annotated[str | None, Query(pattern="^(buy|rent)$")] = None,
+    city: Annotated[str | None, Query(min_length=1, max_length=80)] = None,
+    property_type: Annotated[str | None, Query(alias="type", min_length=1, max_length=80)] = None,
+    price_basis: Annotated[str | None, Query(min_length=1, max_length=40)] = None,
+    days: Annotated[int, Query(ge=7, le=365)] = 90,
+) -> dict[str, object]:
+    items, as_of = list_market_series(
+        purpose=purpose,
+        city=city,
+        property_type=property_type,
+        price_basis=price_basis,
+        days=days,
+    )
+    readiness = market_readiness(items)
+    return {
+        "items": items,
+        "status": readiness["status"],
+        "readiness": readiness,
+        "asOf": as_of,
+        "days": days,
+        "filters": {
+            "purpose": purpose,
+            "city": city,
+            "propertyType": property_type,
+            "priceBasis": price_basis,
+        },
+        "mode": "observed-asking-price-history",
+    }
+
+
 @app.post("/api/admin/refresh")
 async def refresh(x_refresh_token: Annotated[str | None, Header()] = None) -> JSONResponse:
     if not REFRESH_TOKEN:
@@ -171,6 +246,12 @@ def index_file() -> FileResponse:
     return FileResponse(ROOT_DIR / "index.html", media_type="text/html")
 
 
+@app.get("/market")
+@app.get("/market.html")
+def market_file() -> FileResponse:
+    return FileResponse(ROOT_DIR / "market.html", media_type="text/html")
+
+
 @app.get("/styles.css")
 def stylesheet() -> FileResponse:
     return FileResponse(ROOT_DIR / "styles.css", media_type="text/css")
@@ -179,6 +260,16 @@ def stylesheet() -> FileResponse:
 @app.get("/script.js")
 def javascript() -> FileResponse:
     return FileResponse(ROOT_DIR / "script.js", media_type="text/javascript")
+
+
+@app.get("/market.css")
+def market_stylesheet() -> FileResponse:
+    return FileResponse(ROOT_DIR / "market.css", media_type="text/css")
+
+
+@app.get("/market.js")
+def market_javascript() -> FileResponse:
+    return FileResponse(ROOT_DIR / "market.js", media_type="text/javascript")
 
 
 @app.get("/data/listings.json")

@@ -4,8 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "uvicorn backend.app:app --host 127.0.0.1 --port 4173 --reload",
+    "start": "uvicorn backend.app:app --host 127.0.0.1 --port 4173",
+    "refresh": "python3 -m backend.ingest --limit 24",
     "build": "node scripts/build.mjs",
-    "check": "node --check script.js && node --check scripts/browser-smoke.mjs"
+    "check": "node --check script.js && node --check market.js && node --check scripts/browser-smoke.mjs && node --check scripts/market-smoke.mjs && python3 -m compileall -q backend scripts/api_smoke.py",
+    "test:api": "python3 scripts/api_smoke.py",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "test:market": "node scripts/market-smoke.mjs"
   },
   "engines": {
     "node": ">=18"

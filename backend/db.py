@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections import defaultdict
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from statistics import median
 from typing import Iterator, Sequence
 
 from backend.config import DB_PATH
@@ -191,6 +193,24 @@ CREATE TABLE IF NOT EXISTS listings (
 CREATE INDEX IF NOT EXISTS idx_listings_filters
 ON listings(is_active, purpose, city, property_type, price_npr);
 
+CREATE TABLE IF NOT EXISTS listing_price_observations (
+    listing_id TEXT NOT NULL REFERENCES listings(id),
+    observed_at TEXT NOT NULL,
+    purpose TEXT NOT NULL CHECK (purpose IN ('buy', 'rent')),
+    city TEXT NOT NULL DEFAULT '',
+    property_type TEXT NOT NULL,
+    price_npr INTEGER,
+    price_basis TEXT NOT NULL,
+    is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+    is_clean INTEGER NOT NULL CHECK (is_clean IN (0, 1)),
+    PRIMARY KEY(listing_id, observed_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_observations_market_series
+ON listing_price_observations(
+    observed_at, purpose, city, property_type, price_basis, is_active, is_clean
+);
+
 CREATE TABLE IF NOT EXISTS ingestion_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_slug TEXT NOT NULL REFERENCES sources(slug),
@@ -312,6 +332,7 @@ def initialise(path: Path = DB_PATH) -> None:
             """,
             SOURCE_CATALOG,
         )
+        _backfill_price_observations(connection)
 
 
 def start_run(source_slug: str, path: Path = DB_PATH) -> int:
@@ -363,6 +384,100 @@ def finish_run(
             connection.execute("UPDATE sources SET last_error = ? WHERE slug = ?", (error, source_slug))
 
 
+def _is_clean_asking_price(
+    *,
+    price_npr: int | None,
+    title: str,
+    price_label: str,
+    raw_facts: dict[str, object],
+) -> bool:
+    if price_npr is None or price_npr <= 0:
+        return False
+    quality_flags = raw_facts.get("quality_flags")
+    if quality_flags:
+        return False
+    source_price = " ".join(
+        str(raw_facts.get(key) or "") for key in ("source_price_text", "source_price_label")
+    )
+    return re.search(r"\$|\busd\b|dollars?", f"{title} {price_label} {source_price}", re.IGNORECASE) is None
+
+
+def _append_price_observation(
+    connection: sqlite3.Connection,
+    *,
+    listing_id: str,
+    observed_at: str,
+    purpose: str,
+    city: str,
+    property_type: str,
+    price_npr: int | None,
+    price_basis: str,
+    is_active: bool,
+    is_clean: bool,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO listing_price_observations(
+            listing_id, observed_at, purpose, city, property_type,
+            price_npr, price_basis, is_active, is_clean
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(listing_id, observed_at) DO NOTHING
+        """,
+        (
+            listing_id,
+            observed_at,
+            purpose,
+            city,
+            property_type,
+            price_npr,
+            price_basis,
+            int(is_active),
+            int(is_clean),
+        ),
+    )
+
+
+def _backfill_price_observations(connection: sqlite3.Connection) -> None:
+    if connection.execute("SELECT 1 FROM listing_price_observations LIMIT 1").fetchone():
+        return
+
+    fallback_observed_at = utcnow()
+    rows = connection.execute(
+        """
+        SELECT id, title, purpose, city, property_type, price_npr, price_basis,
+               price_label, raw_facts_json, last_fetched_at, is_active
+        FROM listings
+        """
+    ).fetchall()
+    for row in rows:
+        try:
+            raw_facts = json.loads(row["raw_facts_json"] or "{}")
+        except json.JSONDecodeError:
+            raw_facts = {}
+        observed_at = row["last_fetched_at"] or fallback_observed_at
+        try:
+            datetime.fromisoformat(observed_at)
+        except (TypeError, ValueError):
+            observed_at = fallback_observed_at
+        _append_price_observation(
+            connection,
+            listing_id=row["id"],
+            observed_at=observed_at,
+            purpose=row["purpose"],
+            city=row["city"],
+            property_type=row["property_type"],
+            price_npr=row["price_npr"],
+            price_basis=row["price_basis"],
+            is_active=bool(row["is_active"]),
+            is_clean=_is_clean_asking_price(
+                price_npr=row["price_npr"],
+                title=row["title"],
+                price_label=row["price_label"],
+                raw_facts=raw_facts if isinstance(raw_facts, dict) else {},
+            ),
+        )
+
+
 def upsert_listings(
     records: Sequence[ListingRecord],
     path: Path = DB_PATH,
@@ -380,14 +495,26 @@ def upsert_listings(
     inserted = 0
     updated = 0
     with connect(path) as connection:
+        deactivated_rows: list[sqlite3.Row] = []
         # is_active means "present in the current bounded index window". It is
         # not a claim that a property outside that window has sold.
         if replace_index_window_for_source:
+            deactivated_rows = connection.execute(
+                """
+                SELECT id, title, purpose, city, property_type, price_npr,
+                       price_basis, price_label, raw_facts_json
+                FROM listings
+                WHERE source_slug = ? AND is_active = 1
+                """,
+                (replace_index_window_for_source,),
+            ).fetchall()
             connection.execute(
                 "UPDATE listings SET is_active = 0 WHERE source_slug = ?",
                 (replace_index_window_for_source,),
             )
+        active_ids: set[str] = set()
         for record in records:
+            active_ids.add(record.id)
             exists = connection.execute("SELECT 1 FROM listings WHERE id = ?", (record.id,)).fetchone()
             connection.execute(
                 """
@@ -443,6 +570,47 @@ def upsert_listings(
                 updated += 1
             else:
                 inserted += 1
+            _append_price_observation(
+                connection,
+                listing_id=record.id,
+                observed_at=now,
+                purpose=record.purpose,
+                city=record.city,
+                property_type=record.property_type,
+                price_npr=record.price_npr,
+                price_basis=record.price_basis,
+                is_active=True,
+                is_clean=_is_clean_asking_price(
+                    price_npr=record.price_npr,
+                    title=record.title,
+                    price_label=record.price_label,
+                    raw_facts=record.raw_facts,
+                ),
+            )
+        for row in deactivated_rows:
+            if row["id"] in active_ids:
+                continue
+            try:
+                raw_facts = json.loads(row["raw_facts_json"] or "{}")
+            except json.JSONDecodeError:
+                raw_facts = {}
+            _append_price_observation(
+                connection,
+                listing_id=row["id"],
+                observed_at=now,
+                purpose=row["purpose"],
+                city=row["city"],
+                property_type=row["property_type"],
+                price_npr=row["price_npr"],
+                price_basis=row["price_basis"],
+                is_active=False,
+                is_clean=_is_clean_asking_price(
+                    price_npr=row["price_npr"],
+                    title=row["title"],
+                    price_label=row["price_label"],
+                    raw_facts=raw_facts if isinstance(raw_facts, dict) else {},
+                ),
+            )
         connection.execute(
             """
             UPDATE sources
@@ -557,6 +725,95 @@ def list_sources(path: Path = DB_PATH) -> list[dict[str, object]]:
             """
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def list_market_series(
+    *,
+    purpose: str | None = None,
+    city: str | None = None,
+    property_type: str | None = None,
+    price_basis: str | None = None,
+    days: int = 90,
+    path: Path = DB_PATH,
+) -> tuple[list[dict[str, object]], str | None]:
+    """Return daily medians for exact, like-for-like asking-price cohorts."""
+    bounded_days = min(max(days, 7), 365)
+    today = datetime.now(UTC).date()
+    first_date = (today - timedelta(days=bounded_days - 1)).isoformat()
+    next_date = (today + timedelta(days=1)).isoformat()
+    cohort_clauses: list[str] = []
+    parameters: list[object] = [first_date, next_date]
+    for column, value in (
+        ("purpose", purpose),
+        ("city", city),
+        ("property_type", property_type),
+        ("price_basis", price_basis),
+    ):
+        if value:
+            cohort_clauses.append(f"{column} = ?")
+            parameters.append(value)
+    cohort_where = "" if not cohort_clauses else f" AND {' AND '.join(cohort_clauses)}"
+    with connect(path) as connection:
+        latest_observation = connection.execute(
+            f"""
+            SELECT MAX(observed_at)
+            FROM listing_price_observations
+            WHERE observed_at >= ? AND observed_at < ?{cohort_where}
+            """,
+            parameters,
+        ).fetchone()[0]
+        rows = connection.execute(
+            f"""
+            WITH ranked AS (
+                SELECT observed_at, DATE(observed_at) AS observed_date,
+                       listing_id, purpose, city, property_type, price_npr,
+                       price_basis, is_active, is_clean,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY listing_id, DATE(observed_at)
+                           ORDER BY observed_at DESC
+                       ) AS daily_rank
+                FROM listing_price_observations
+                WHERE observed_at >= ? AND observed_at < ?
+            )
+            SELECT observed_at, observed_date, purpose, city, property_type,
+                   price_npr, price_basis
+            FROM ranked
+            WHERE daily_rank = 1
+              AND is_active = 1
+              AND is_clean = 1
+              AND price_npr > 0
+              {cohort_where}
+            ORDER BY observed_date, purpose, city, property_type, price_basis, price_npr
+            """,
+            parameters,
+        ).fetchall()
+
+    groups: dict[tuple[str, str, str, str, str], list[int]] = defaultdict(list)
+    for row in rows:
+        key = (
+            row["observed_date"],
+            row["purpose"],
+            row["city"],
+            row["property_type"],
+            row["price_basis"],
+        )
+        groups[key].append(int(row["price_npr"]))
+
+    items: list[dict[str, object]] = []
+    for (date, group_purpose, group_city, group_type, group_basis), prices in groups.items():
+        median_price = median(prices)
+        items.append(
+            {
+                "date": date,
+                "purpose": group_purpose,
+                "city": group_city,
+                "propertyType": group_type,
+                "priceBasis": group_basis,
+                "medianPriceNpr": int(median_price) if float(median_price).is_integer() else median_price,
+                "listingCount": len(prices),
+            }
+        )
+    return items, latest_observation
 
 
 def database_stats(path: Path = DB_PATH) -> dict[str, object]:

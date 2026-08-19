@@ -7,7 +7,7 @@ const sourceRoot = new URL("../", import.meta.url);
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 
-for (const file of ["index.html", "styles.css", "script.js"]) {
+for (const file of ["index.html", "styles.css", "script.js", "market.html", "market.css", "market.js"]) {
   await cp(new URL(file, sourceRoot), new URL(file, outputDirectory));
 }
 await mkdir(new URL("data/", outputDirectory), { recursive: true });
@@ -36,8 +36,13 @@ await writeFile(new URL(".build-info", outputDirectory), "Nepal Estate Index sta
 const workerAssets = [
   { route: "/", file: "index.html", type: "text/html; charset=utf-8", cache: "no-cache" },
   { route: "/index.html", file: "index.html", type: "text/html; charset=utf-8", cache: "no-cache" },
+  { route: "/market", file: "market.html", type: "text/html; charset=utf-8", cache: "no-cache" },
+  { route: "/market/", file: "market.html", type: "text/html; charset=utf-8", cache: "no-cache" },
+  { route: "/market.html", file: "market.html", type: "text/html; charset=utf-8", cache: "no-cache" },
   { route: "/styles.css", file: "styles.css", type: "text/css; charset=utf-8", cache: "no-cache" },
   { route: "/script.js", file: "script.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
+  { route: "/market.css", file: "market.css", type: "text/css; charset=utf-8", cache: "no-cache" },
+  { route: "/market.js", file: "market.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   {
     route: "/data/listings.json",
     file: "data/listings.json",

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Compare Nepal property listings with current asking-price benchmarks, peer analytics, and transparent market scenarios."
+    />
+    <meta name="theme-color" content="#363c46" />
+    <title>Market Board | Nepal Estate Index</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/assets/images/property-image-unavailable.svg" as="image" />
+    <link rel="stylesheet" href="/market.css" />
+    <script src="/market.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#market-main">Skip to market board</a>
+
+    <header class="terminal-header">
+      <a class="market-brand" href="/" aria-label="Nepal Estate Index, home">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="brand-copy"><strong>Nepal Estate Index</strong><small>Market intelligence</small></span>
+      </a>
+
+      <nav class="terminal-nav" aria-label="Primary navigation">
+        <a href="/">Explore</a>
+        <a href="/market" aria-current="page">Market board</a>
+      </nav>
+
+      <div class="feed-state" data-feed-state role="status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Connecting to index</span>
+      </div>
+    </header>
+
+    <main id="market-main" class="market-main">
+      <section class="market-masthead" aria-labelledby="market-title">
+        <div>
+          <p class="terminal-kicker">NEI / PROPERTY INTELLIGENCE / NEPAL</p>
+          <h1 id="market-title">Housing market board</h1>
+          <p class="masthead-summary">
+            Current asking prices, peer positioning, and scenario analysis across the live listing index.
+          </p>
+        </div>
+        <div class="market-clock" aria-label="Index timing">
+          <span>INDEX AS OF</span>
+          <strong data-as-of>Loading</strong>
+          <small data-coverage>Checking coverage</small>
+        </div>
+      </section>
+
+      <section class="control-deck" aria-label="Market filters">
+        <div class="segmented-control" role="group" aria-label="Listing purpose">
+          <button class="is-active" type="button" data-purpose="buy" aria-pressed="true">Buy</button>
+          <button type="button" data-purpose="rent" aria-pressed="false">Rent</button>
+        </div>
+
+        <label class="terminal-field terminal-field-search">
+          <span>Search</span>
+          <input type="search" data-search placeholder="Address, locality, source" autocomplete="off" />
+        </label>
+
+        <label class="terminal-field">
+          <span>Market</span>
+          <select data-city>
+            <option value="all">All markets</option>
+          </select>
+        </label>
+
+        <label class="terminal-field">
+          <span>Property</span>
+          <select data-type>
+            <option value="all">All property</option>
+            <option value="House">House</option>
+            <option value="Apartment">Apartment</option>
+            <option value="Land">Land</option>
+            <option value="Commercial">Commercial</option>
+          </select>
+        </label>
+
+        <label class="terminal-field">
+          <span>Price basis</span>
+          <select data-basis>
+            <option value="all">Comparable basis</option>
+          </select>
+        </label>
+
+        <label class="terminal-field">
+          <span>Order</span>
+          <select data-sort>
+            <option value="signal-high">Scenario: upside</option>
+            <option value="price-low">Ask: low to high</option>
+            <option value="price-high">Ask: high to low</option>
+            <option value="value-low">Peer position: low</option>
+            <option value="newest">Newest indexed</option>
+          </select>
+        </label>
+
+        <button class="reset-button" type="button" data-reset aria-label="Reset market filters" title="Reset filters">
+          <span aria-hidden="true">↺</span>
+        </button>
+      </section>
+
+      <section class="ticker-strip" aria-label="Current market indicators">
+        <article class="ticker-item">
+          <span>VISIBLE INVENTORY</span>
+          <strong data-kpi-inventory>--</strong>
+          <small data-kpi-inventory-note>loading listings</small>
+        </article>
+        <article class="ticker-item">
+          <span>MEDIAN ASK</span>
+          <strong data-kpi-median>--</strong>
+          <small data-kpi-basis>comparable listings</small>
+        </article>
+        <article class="ticker-item">
+          <span>MIDDLE 50% RANGE</span>
+          <strong data-kpi-range>--</strong>
+          <small>current asking prices</small>
+        </article>
+        <article class="ticker-item">
+          <span>ANALYTICS COVERAGE</span>
+          <strong data-kpi-coverage>--</strong>
+          <small>listings with peer signal</small>
+        </article>
+      </section>
+
+      <div class="workspace-grid">
+        <section class="inventory-panel" aria-labelledby="inventory-title">
+          <header class="panel-header">
+            <div>
+              <p>LIVE INVENTORY</p>
+              <h2 id="inventory-title">Listings tape</h2>
+            </div>
+            <div class="panel-meta">
+              <span data-result-count>Loading</span>
+              <span data-compare-count>0 / 4 compared</span>
+            </div>
+          </header>
+
+          <div class="inventory-columns" aria-hidden="true">
+            <span>Compare / property</span>
+            <span>Ask</span>
+            <span>Peer position</span>
+            <span>Scenario</span>
+          </div>
+
+          <div class="inventory-list" data-inventory-list aria-live="polite" aria-busy="true">
+            <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
+            <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
+            <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
+            <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
+            <div class="inventory-loading"><span></span><span></span><span></span><span></span></div>
+          </div>
+
+          <div class="inventory-empty" data-empty hidden>
+            <strong>No comparable listings</strong>
+            <span>Change the market, property, or price-basis filters.</span>
+          </div>
+        </section>
+
+        <aside class="analytics-rail" aria-label="Market analytics">
+          <section class="analytics-panel distribution-panel" aria-labelledby="distribution-title">
+            <header class="panel-header panel-header-tight">
+              <div>
+                <p>MARKET DISTRIBUTION</p>
+                <h2 id="distribution-title">Asking price range</h2>
+              </div>
+              <span class="basis-chip" data-chart-basis>--</span>
+            </header>
+            <canvas data-distribution-chart height="220" aria-label="Filtered asking-price distribution"></canvas>
+            <div class="chart-scale" data-chart-scale aria-hidden="true"><span>--</span><span>--</span><span>--</span></div>
+            <p class="chart-note" data-distribution-note>Waiting for comparable listing data.</p>
+          </section>
+
+          <section class="analytics-panel scenario-panel" aria-labelledby="scenario-title">
+            <header class="panel-header panel-header-tight">
+              <div>
+                <p>EXPERIMENTAL SCENARIO</p>
+                <h2 id="scenario-title">Asking-price direction</h2>
+              </div>
+              <div class="horizon-control" role="group" aria-label="Scenario horizon">
+                <button class="is-active" type="button" data-horizon="12" aria-pressed="true">12M</button>
+                <button type="button" data-horizon="24" aria-pressed="false">24M</button>
+                <button type="button" data-horizon="36" aria-pressed="false">36M</button>
+              </div>
+            </header>
+
+            <div class="scenario-focus" data-scenario-focus>
+              <div>
+                <span>SELECTED PROPERTY</span>
+                <strong data-scenario-property>Loading</strong>
+                <small data-scenario-peer>Building peer set</small>
+              </div>
+              <div class="scenario-signal is-neutral" data-scenario-signal>
+                <span data-scenario-direction>--</span>
+                <strong data-scenario-change>--</strong>
+              </div>
+            </div>
+
+            <canvas data-scenario-chart height="170" aria-label="Asking-price scenario range"></canvas>
+            <div class="scenario-stats">
+              <div><span>Current ask</span><strong data-current-ask>--</strong></div>
+              <div><span>Scenario midpoint</span><strong data-scenario-mid>--</strong></div>
+              <div><span>Scenario range</span><strong data-scenario-range>--</strong></div>
+              <div><span>Confidence</span><strong data-confidence>--</strong></div>
+            </div>
+            <button class="method-button" type="button" data-method-open aria-expanded="false" aria-controls="method-panel">
+              Method and limitations <span aria-hidden="true">+</span>
+            </button>
+            <div class="method-panel" id="method-panel" data-method-panel hidden>
+              <p>
+                The signal measures how far this asking price sits from the median of comparable active listings,
+                then applies a capped mean-reversion scenario. It is not a valuation, transaction-price forecast,
+                or promise of future performance.
+              </p>
+              <dl>
+                <div><dt>Inputs</dt><dd>Current asks, property type, city, price basis, and area when standardized.</dd></div>
+                <div><dt>Missing</dt><dd>Closed sales, demand, financing, price history, and property-condition adjustments.</dd></div>
+              </dl>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section class="comparison-section" aria-labelledby="comparison-title">
+        <header class="comparison-header">
+          <div>
+            <p>PINNED ANALYSIS</p>
+            <h2 id="comparison-title">Property comparison</h2>
+          </div>
+          <div class="comparison-actions">
+            <span data-comparison-status>Select up to four listings</span>
+            <button type="button" data-clear-comparison>Clear</button>
+          </div>
+        </header>
+        <div class="comparison-wrap">
+          <div class="comparison-grid" data-comparison-grid aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="market-footnotes" aria-label="Data notes">
+        <div>
+          <span>DATA SCOPE</span>
+          <p data-data-scope>Loading source coverage.</p>
+        </div>
+        <div>
+          <span>PRICE BASIS</span>
+          <p>Total, monthly, per-aana, per-ropani, and per-square-foot asks are never mixed in one benchmark.</p>
+        </div>
+        <div>
+          <span>USE</span>
+          <p>Private research prototype. Verify price, availability, dimensions, and title details with the original publisher.</p>
+        </div>
+      </section>
+    </main>
+
+    <div class="market-toast" data-toast role="status" aria-live="polite"></div>
+  </body>
+</html>
