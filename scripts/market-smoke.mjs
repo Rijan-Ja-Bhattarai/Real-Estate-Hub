@@ -244,6 +244,79 @@ try {
   assert(comparisonSelection.countAfterAdd === "1 / 4 compared", "Comparison count did not update after selection.");
   assert(comparisonSelection.selectedAfterAdd === "true" && comparisonSelection.removePresent, "Selected comparison state was not reflected across the board.");
 
+  const assistantComparison = await evaluate(`(() => {
+    const secondButton = document.querySelector('[data-toggle-compare][aria-pressed="false"]');
+    const secondId = secondButton?.dataset.toggleCompare;
+    secondButton?.click();
+    const selectedIds = [...document.querySelectorAll('[data-comparison-id]')].map((card) => card.dataset.comparisonId);
+    window.__assistantNativeFetch = window.fetch;
+    window.__assistantRequest = null;
+    window.fetch = async (input, options = {}) => {
+      const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+      if (url.pathname !== '/api/assistant/chat') return window.__assistantNativeFetch(input, options);
+      const request = JSON.parse(options.body);
+      window.__assistantRequest = request;
+      const recommendations = [{
+        id: request.selectedListingIds[0],
+        title: 'Selected house',
+        location: 'Kathmandu',
+        area: '3 aana',
+        priceLabel: 'Rs. 2 Cr',
+        recommendationRole: 'selected-house',
+        url: '/properties?listing=' + encodeURIComponent(request.selectedListingIds[0])
+      }, {
+        id: 'test:cafe-land',
+        title: 'Cafe land match',
+        location: 'Lalitpur',
+        area: '1 ropani',
+        priceLabel: 'Price on request',
+        recommendationRole: 'additional-land',
+        url: '/properties?listing=test%3Acafe-land'
+      }];
+      return new Response(JSON.stringify({
+        answer: 'For the house, the strongest fit is Selected house because it fits your budget. For the cafe, the strongest land match is Cafe land match because it has suitable access.',
+        recommendations,
+        filterUrl: null,
+        contextMode: 'compound',
+        responseStyle: 'compound-recommendation',
+        selectedListingIds: request.selectedListingIds,
+        mode: 'database-fallback'
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    document.querySelector('[data-nei-assistant]').click();
+    const input = document.querySelector('[data-assistant-form] input');
+    const contextLabel = document.querySelector('[data-assistant-mode]').textContent.trim();
+    input.value = 'Which selected house is best within 2cr? I also need land for a small cafe.';
+    document.querySelector('[data-assistant-form]').requestSubmit();
+    return { secondId, selectedIds, contextLabel };
+  })()`);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (await evaluate(`Boolean(window.__assistantRequest)`)) break;
+    await delay(50);
+  }
+  await delay(50);
+  const assistantRequest = await evaluate(`({
+    request: window.__assistantRequest,
+    answer: [...document.querySelectorAll('.nei-message.is-assistant')].at(-1)?.childNodes[0]?.textContent,
+    selectedActions: [...document.querySelectorAll('.nei-recommendation em')].map((node) => node.textContent)
+  })`);
+  assert(assistantComparison.selectedIds.length === 2, "The test could not pin two listings for AI comparison.");
+  assert(assistantComparison.contextLabel.includes("2 selected Market listings"), "Assistant did not surface its selected-listing context.");
+  assert(
+    JSON.stringify(assistantRequest.request?.selectedListingIds) === JSON.stringify(assistantComparison.selectedIds),
+    "Assistant request did not include the exact pinned comparison IDs.",
+  );
+  assert(assistantRequest.answer?.includes("strongest fit") && assistantRequest.answer?.includes("land match"), "Assistant did not answer both parts of the compound request.");
+  assert(assistantRequest.selectedActions.length === 2, "Assistant did not render exactly one selected house and one cafe land match.");
+  assert(assistantRequest.selectedActions[0].includes("recommended house") && assistantRequest.selectedActions[1].includes("recommended cafe land"), "Assistant did not distinguish the house winner from the new land search.");
+  await evaluate(`(() => {
+    window.fetch = window.__assistantNativeFetch;
+    delete window.__assistantNativeFetch;
+    delete window.__assistantRequest;
+    document.querySelector('[data-assistant-close]').click();
+    document.querySelector('[data-toggle-compare="${assistantComparison.secondId}"]')?.click();
+  })()`);
+
   const comparisonRemoval = await evaluate(`(() => {
     const id = ${JSON.stringify(comparisonSelection.id)};
     document.querySelector('[data-remove-comparison="' + CSS.escape(id) + '"]')?.click();

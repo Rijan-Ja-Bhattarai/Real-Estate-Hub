@@ -151,6 +151,66 @@ async def main() -> None:
                 and item["reason"]
                 for item in assistant_payload["recommendations"]
             )
+            selected_ids = [item["id"] for item in payload["items"][:2]]
+            comparison_response = await client.post(
+                "/api/assistant/chat",
+                json={
+                    "message": "Compare the asking prices of these selected listings.",
+                    "page": "/market",
+                    "selectedListingIds": selected_ids,
+                    "history": [{"role": "user", "content": "Compare only the properties I pinned."}],
+                },
+            )
+            assert comparison_response.status_code == 200
+            comparison_payload = comparison_response.json()
+            assert comparison_payload["contextMode"] == "comparison"
+            assert comparison_payload["filterUrl"] is None
+            assert comparison_payload["selectedListingIds"] == selected_ids
+            assert [item["id"] for item in comparison_payload["recommendations"]] == selected_ids
+            assert "selected Market listing" in comparison_payload["answer"]
+            assert all("Pinned in your Market comparison" not in item["reason"] for item in comparison_payload["recommendations"])
+            recommendation_response = await client.post(
+                "/api/assistant/chat",
+                json={
+                    "message": "From the houses I selected, which is the best house to buy? My budget is 2cr.",
+                    "page": "/market",
+                    "selectedListingIds": selected_ids,
+                },
+            )
+            assert recommendation_response.status_code == 200
+            recommendation_payload = recommendation_response.json()
+            assert recommendation_payload["contextMode"] == "comparison"
+            assert recommendation_payload["responseStyle"] == "single-recommendation"
+            assert recommendation_payload["selectedListingIds"] == selected_ids
+            assert len(recommendation_payload["recommendations"]) == 1
+            assert recommendation_payload["recommendations"][0]["title"] in recommendation_payload["answer"]
+            assert not any(listing_id in recommendation_payload["answer"] for listing_id in selected_ids)
+            assert "**" not in recommendation_payload["answer"] and "\n-" not in recommendation_payload["answer"]
+            assert len(recommendation_payload["answer"]) <= 520
+            compound_response = await client.post(
+                "/api/assistant/chat",
+                json={
+                    "message": "From the houses that I have selected which is the best house to buy? I have a budget of 2cr for the house and I also need land to buy for a small cafe. Could you suggest something?",
+                    "page": "/market",
+                    "selectedListingIds": selected_ids,
+                },
+            )
+            assert compound_response.status_code == 200
+            compound_payload = compound_response.json()
+            assert compound_payload["contextMode"] == "compound"
+            assert compound_payload["responseStyle"] == "compound-recommendation"
+            assert compound_payload["selectedListingIds"] == selected_ids
+            assert len(compound_payload["recommendations"]) == 2
+            assert [item["recommendationRole"] for item in compound_payload["recommendations"]] == ["selected-house", "additional-land"]
+            assert compound_payload["recommendations"][0]["id"] in selected_ids
+            assert compound_payload["recommendations"][1]["type"] == "Land"
+            assert all(item["title"] in compound_payload["answer"] for item in compound_payload["recommendations"])
+            assert not any(listing_id in compound_payload["answer"] for listing_id in selected_ids)
+            too_many_selected = await client.post(
+                "/api/assistant/chat",
+                json={"message": "Compare these", "selectedListingIds": [f"listing-{index}" for index in range(5)]},
+            )
+            assert too_many_selected.status_code == 422
             assert (await client.post("/api/assistant/chat", json={"message": ""})).status_code == 422
 
             all_listings = (await client.get("/api/listings", params={"limit": 250})).json()

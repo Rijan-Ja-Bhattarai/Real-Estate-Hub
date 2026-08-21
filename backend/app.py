@@ -13,7 +13,20 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend.assistant import fallback_answer, ollama_answer, rank_listings
+from backend.assistant import (
+    additional_land_request,
+    choose_comparison_winner,
+    compound_recommendation_fallback_answer,
+    comparison_fallback_answer,
+    comparison_recommendations,
+    fallback_answer,
+    ollama_answer,
+    rank_listings,
+    single_recommendation_fallback_answer,
+    valid_compound_recommendation_answer,
+    valid_single_recommendation_answer,
+    wants_single_recommendation,
+)
 from backend.config import ENABLE_SCHEDULER, EXPORT_PATH, OLLAMA_MODEL, REFRESH_HOURS, REFRESH_TOKEN, ROOT_DIR
 from backend.db import database_stats, initialise, list_listings, list_market_series, list_sources
 from backend.ingest import export_snapshot, refresh_all, seed_from_snapshot
@@ -35,6 +48,7 @@ class AssistantRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1200)
     history: list[AssistantTurn] = Field(default_factory=list, max_length=8)
     page: str = Field(default="/", max_length=200)
+    selectedListingIds: list[str] = Field(default_factory=list, max_length=4)
 
 
 def report_refresh_failures(results: list[dict[str, object]]) -> None:
@@ -242,13 +256,88 @@ async def market_series(
 
 @app.post("/api/assistant/chat")
 async def assistant_chat(request: AssistantRequest) -> dict[str, object]:
-    items, _ = list_listings(limit=250)
-    brief, recommendations = rank_listings(request.message, items)
-    answer = await ollama_answer(request.message, brief, recommendations, items)
+    items, _ = list_listings(limit=1000)
+    selected_ids = list(dict.fromkeys(request.selectedListingIds))
+    selected_lookup = {str(item.get("id") or ""): item for item in items}
+    selected = [selected_lookup[listing_id] for listing_id in selected_ids if listing_id in selected_lookup]
+    single_recommendation = False
+    compound_recommendation = False
+    winner: dict[str, object] | None = None
+    land_winner: dict[str, object] | None = None
+    response_style = "search"
+    if selected_ids:
+        response_style = "comparison"
+        brief: dict[str, object] = {
+            "contextMode": "comparison",
+            "selectedCount": len(selected),
+            "selectedListingIds": selected_ids,
+            "filterUrl": None,
+        }
+        recommendations = comparison_recommendations(selected, items)
+        single_recommendation = wants_single_recommendation(request.message) and bool(selected)
+        if single_recommendation:
+            winner = choose_comparison_winner(request.message, selected, items)
+            if winner:
+                brief["recommendedListingId"] = str(winner.get("id") or "")
+                brief["recommendedListingTitle"] = str(winner.get("title") or "")
+                land_request = additional_land_request(request.message)
+                if land_request:
+                    land_brief, land_recommendations = rank_listings(land_request, items, limit=1)
+                    land_winner = land_recommendations[0] if land_recommendations else None
+                    winner_id = str(winner.get("id") or "")
+                    winner_recommendation = next(
+                        (item for item in recommendations if str(item.get("id") or "") == winner_id),
+                        None,
+                    )
+                    recommendations = []
+                    if winner_recommendation:
+                        recommendations.append({**winner_recommendation, "recommendationRole": "selected-house"})
+                    if land_winner:
+                        land_winner = {**land_winner, "recommendationRole": "additional-land"}
+                        recommendations.append(land_winner)
+                    compound_recommendation = True
+                    response_style = "compound-recommendation"
+                    brief.update(
+                        {
+                            "contextMode": "compound",
+                            "compoundRecommendation": True,
+                            "landSearchBrief": land_brief,
+                            "recommendedLandListingId": str((land_winner or {}).get("id") or ""),
+                            "recommendedLandListingTitle": str((land_winner or {}).get("title") or ""),
+                        }
+                    )
+                    fallback = compound_recommendation_fallback_answer(winner, selected, land_winner, request.message)
+                else:
+                    brief["singleRecommendation"] = True
+                    response_style = "single-recommendation"
+                    fallback = single_recommendation_fallback_answer(winner, selected, request.message)
+            else:
+                fallback = comparison_fallback_answer(request.message, selected, recommendations)
+        else:
+            response_style = "comparison"
+            fallback = comparison_fallback_answer(request.message, selected, recommendations)
+    else:
+        brief, recommendations = rank_listings(request.message, items)
+        brief["contextMode"] = "search"
+        response_style = "search"
+        fallback = fallback_answer(brief, recommendations)
+    history = [{"role": turn.role, "content": turn.content} for turn in request.history]
+    answer = await ollama_answer(request.message, brief, recommendations, items, history)
+    if compound_recommendation and winner:
+        if not valid_compound_recommendation_answer(answer, winner, land_winner, selected):
+            answer = None
+    elif single_recommendation and winner:
+        if not valid_single_recommendation_answer(answer, winner, selected):
+            answer = None
+        winner_id = str(winner.get("id") or "")
+        recommendations = [item for item in recommendations if str(item.get("id") or "") == winner_id]
     return {
-        "answer": answer or fallback_answer(brief, recommendations),
+        "answer": answer or fallback,
         "recommendations": recommendations,
-        "filterUrl": brief["filterUrl"],
+        "filterUrl": brief.get("filterUrl"),
+        "contextMode": brief["contextMode"],
+        "responseStyle": response_style,
+        "selectedListingIds": [str(item.get("id") or "") for item in selected] if selected_ids else [],
         "mode": "ollama" if answer else "database-fallback",
         "model": OLLAMA_MODEL,
     }
@@ -332,7 +421,7 @@ def assistant_stylesheet() -> FileResponse:
 
 @app.get("/assistant.js")
 def assistant_javascript() -> FileResponse:
-    return FileResponse(ROOT_DIR / "assistant.js", media_type="text/javascript")
+    return FileResponse(ROOT_DIR / "assistant.js", media_type="text/javascript", headers=NO_STORE_HEADERS)
 
 
 @app.get("/data/listings.json")

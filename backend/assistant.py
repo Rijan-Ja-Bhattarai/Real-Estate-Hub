@@ -155,7 +155,7 @@ def _road_access(item: dict[str, object]) -> str:
     value = _fact(item, "road_access", "road_and_area")
     measurements = re.findall(r"(\d+(?:\.\d+)?)\s*(ft|feet|feets|foot|m|meter|meters|metre|metres)\b", value, re.IGNORECASE)
     if not measurements:
-        return value
+        return "" if re.fullmatch(r"\d+(?:\.\d+)?", value) else value
     amount, unit = measurements[-1]
     normalized_unit = "ft" if unit.lower() in {"ft", "feet", "feets", "foot"} else "m"
     return f"{amount} {normalized_unit}"
@@ -172,6 +172,8 @@ def _score_listing(item: dict[str, object], brief: dict[str, object]) -> float:
         score += 16 if item_type == brief["propertyType"] else -14
     if brief["businessUse"] and item_type in {"Land", "Commercial"}:
         score += 7
+        if item_type == "Land" and item.get("area") and str(item.get("area")).lower() != "area on source":
+            score += 2
     if brief["city"]:
         score += 12 if item.get("city") == brief["city"] else -7
     if brief["bedrooms"] is not None:
@@ -267,6 +269,254 @@ def rank_listings(message: str, listings: list[dict[str, object]], limit: int = 
     return brief, recommendations
 
 
+def comparison_recommendations(
+    selected: list[dict[str, object]],
+    inventory: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    medians = _cohort_medians(inventory)
+    recommendations: list[dict[str, object]] = []
+    for item in selected:
+        reasons: list[str] = []
+        area = str(item.get("area") or "Area not supplied")
+        if area.lower() != "area on source":
+            reasons.append(f"Reported area: {area}.")
+        road = _road_access(item)
+        if road:
+            reasons.append(f"Reported road access: {road}.")
+        key = (
+            str(item.get("purpose") or ""),
+            str(item.get("city") or ""),
+            str(item.get("type") or ""),
+            str(item.get("priceBasis") or ""),
+        )
+        cohort_median = medians.get(key)
+        price = item.get("price")
+        if cohort_median and isinstance(price, (int, float)):
+            difference = round((float(price) / cohort_median - 1) * 100)
+            position = f"{abs(difference)}% {'above' if difference > 0 else 'below'} its like-for-like peer median"
+            reasons.append(f"Its current ask is about {position}.")
+        if not reasons:
+            reasons.append("The index has limited standardized facts for this selection; verify its source listing.")
+        query = {
+            "purpose": str(item.get("purpose") or "buy"),
+            "type": str(item.get("type") or ""),
+            "listing": str(item.get("id") or ""),
+            "assistant": "1",
+        }
+        recommendations.append(
+            {
+                "id": item.get("id"),
+                "title": item.get("title"),
+                "location": item.get("location"),
+                "city": item.get("city"),
+                "type": item.get("type"),
+                "purpose": item.get("purpose"),
+                "price": item.get("price"),
+                "priceBasis": item.get("priceBasis"),
+                "priceLabel": item.get("priceLabel") or "Price on request",
+                "area": item.get("area") or "Area on source",
+                "beds": item.get("beds"),
+                "baths": item.get("baths"),
+                "sourceName": item.get("sourceName"),
+                "reason": " ".join(reasons[:3]),
+                "details": {
+                    "roadAccess": road or None,
+                    "parking": _fact(item, "parking") or None,
+                    "facing": _fact(item, "facing") or None,
+                    "furnishing": _fact(item, "furnishing", "furnished") or None,
+                },
+                "url": f"/properties?{urlencode(query)}",
+            }
+        )
+    return recommendations
+
+
+def comparison_fallback_answer(
+    message: str,
+    selected: list[dict[str, object]],
+    recommendations: list[dict[str, object]],
+) -> str:
+    if not selected:
+        return "I could not load the listings pinned in the comparison. Re-select them on the Market page and ask again."
+    prefix = f"I’m using only your {len(selected)} selected Market listing{'s' if len(selected) != 1 else ''}. "
+    lowered = message.lower()
+    if any(word in lowered for word in ("road", "access", "vehicle")):
+        details = [f"{item.get('title')}: {_road_access(item) or 'road access not supplied'}" for item in selected]
+        return prefix + "Reported road access — " + "; ".join(details) + ". Verify these source-reported details before visiting."
+    if any(word in lowered for word in ("price", "ask", "cost", "budget", "cheap", "value")):
+        details = [f"{item.get('title')}: {item.get('priceLabel') or 'price on request'}" for item in selected]
+        comparable = [item for item in selected if isinstance(item.get("price"), (int, float))]
+        bases = {str(item.get("priceBasis") or "") for item in comparable}
+        note = ""
+        if comparable and len(bases) == 1:
+            lowest = min(comparable, key=lambda item: float(item["price"]))
+            note = f" {lowest.get('title')} has the lowest reported ask on their shared {next(iter(bases))} basis."
+        return prefix + "Reported asks — " + "; ".join(details) + "." + note
+    if any(word in lowered for word in ("area", "size", "space", "ropani", "aana", "sq ft", "land")):
+        details = [f"{item.get('title')}: {item.get('area') or 'area not supplied'}" for item in selected]
+        return prefix + "Reported sizes — " + "; ".join(details) + "."
+    summaries = [
+        f"{item.get('title')} — {item.get('priceLabel') or 'price on request'}, {item.get('area') or 'area not supplied'}, {item.get('location') or item.get('city') or 'location not supplied'}"
+        for item in selected
+    ]
+    return prefix + "Here is the indexed comparison: " + "; ".join(summaries) + ". Ask me about price, size, road access, or suitability to compare one factor in detail."
+
+
+def wants_single_recommendation(message: str) -> bool:
+    lowered = message.lower()
+    return bool(
+        re.search(r"\b(best|choose|pick|recommend|winner)\b", lowered)
+        or re.search(r"\bwhich\b.{0,45}\b(buy|purchase|better|value|one)\b", lowered)
+        or re.search(r"\bwhat\b.{0,30}\bshould\s+i\s+buy\b", lowered)
+    )
+
+
+def additional_land_request(message: str) -> str | None:
+    lowered = message.lower()
+    if not re.search(r"\b(land|plot)\b", lowered) or not re.search(r"\b(cafe|cafÃ©|restaurant|shop)\b", lowered):
+        return None
+    split = re.search(r"\b(?:and\s+)?(?:i\s+)?also\b", message, re.IGNORECASE)
+    if not split:
+        split = re.search(r"\b(?:and|plus)\b(?=[^.!?]*(?:land|plot))", message, re.IGNORECASE)
+    request = message[split.end():].strip() if split else message
+    return f"buy {request}" if not re.search(r"\b(buy|purchase)\b", request, re.IGNORECASE) else request
+
+
+def choose_comparison_winner(
+    message: str,
+    selected: list[dict[str, object]],
+    inventory: list[dict[str, object]],
+) -> dict[str, object] | None:
+    if not selected:
+        return None
+    brief = infer_brief(message, inventory)
+    medians = _cohort_medians(inventory)
+    budget = brief.get("budgetNpr")
+
+    def score(item: dict[str, object]) -> float:
+        value = _score_listing(item, brief)
+        price = item.get("price")
+        basis = item.get("priceBasis")
+        if isinstance(budget, int) and isinstance(price, (int, float)) and basis in {"total", "monthly"}:
+            if price <= budget:
+                value += 18
+            else:
+                value -= 30 * min((price - budget) / max(budget, 1), 1)
+        value += 5 if _road_access(item) else 0
+        value += 2.5 if _fact(item, "facing") else 0
+        value += 2.5 if _fact(item, "parking") else 0
+        value += 1.5 if _fact(item, "furnishing", "furnished") else 0
+        value += 1 if item.get("area") and str(item.get("area")).lower() != "area on source" else 0
+        key = (
+            str(item.get("purpose") or ""),
+            str(item.get("city") or ""),
+            str(item.get("type") or ""),
+            str(item.get("priceBasis") or ""),
+        )
+        cohort_median = medians.get(key)
+        if cohort_median and isinstance(price, (int, float)) and price < cohort_median:
+            value += min(12, (cohort_median - float(price)) / cohort_median * 20)
+        return value
+
+    return max(selected, key=score)
+
+
+def single_recommendation_fallback_answer(
+    winner: dict[str, object],
+    selected: list[dict[str, object]],
+    message: str,
+) -> str:
+    title = str(winner.get("title") or "this property")
+    reasons: list[str] = []
+    budget = desired_budget_npr(message)
+    price = winner.get("price")
+    if isinstance(budget, int) and isinstance(price, (int, float)) and price <= budget:
+        reasons.append(f"its {winner.get('priceLabel') or 'reported ask'} is within your stated budget")
+    elif winner.get("priceLabel"):
+        reasons.append(f"its reported ask is {winner.get('priceLabel')}")
+    road = _road_access(winner)
+    if road:
+        reasons.append(f"it reports {road} road access")
+    facing = _fact(winner, "facing")
+    if facing:
+        reasons.append(f"it reports {facing} facing")
+    parking = _fact(winner, "parking")
+    if parking:
+        reasons.append("it includes reported parking")
+    if not reasons:
+        comparable = [item for item in selected if item.get("priceBasis") == winner.get("priceBasis") and isinstance(item.get("price"), (int, float))]
+        if comparable and winner is min(comparable, key=lambda item: float(item["price"])):
+            reasons.append("it has the lowest reported ask on the shared price basis")
+        else:
+            reasons.append("it has the strongest combination of available price and property facts in your shortlist")
+    explanation = ", and ".join(reasons[:2])
+    return f"The strongest fit among your selected listings is {title} because {explanation}. Prioritize this one for verification and due diligence before making an offer."
+
+
+def compound_recommendation_fallback_answer(
+    house_winner: dict[str, object],
+    selected: list[dict[str, object]],
+    land_winner: dict[str, object] | None,
+    message: str,
+) -> str:
+    house_sentence = single_recommendation_fallback_answer(house_winner, selected, message).split(". Prioritize", 1)[0]
+    house_sentence = house_sentence.replace("The strongest fit among your selected listings is", "For the house, the strongest fit is", 1)
+    if not land_winner:
+        return f"{house_sentence}. I could not find an indexed land listing for the cafe yet, so broaden the land search filters."
+    land_reason = str(land_winner.get("reason") or "it is the closest cafe-land match in the current index").split(".", 1)[0]
+    if land_reason:
+        land_reason = land_reason[0].lower() + land_reason[1:]
+    return f"{house_sentence}. For the cafe, the strongest land match is {land_winner.get('title')} because {land_reason}."
+
+
+def valid_single_recommendation_answer(
+    answer: str | None,
+    winner: dict[str, object],
+    selected: list[dict[str, object]],
+) -> bool:
+    if not answer or len(answer) > 520 or "**" in answer or "\n-" in answer or "\n*" in answer or "\n\u2022" in answer:
+        return False
+    title = str(winner.get("title") or "").strip().lower()
+    if not title or title not in answer.lower():
+        return False
+    for item in selected:
+        listing_id = str(item.get("id") or "").lower()
+        other_title = str(item.get("title") or "").strip().lower()
+        if listing_id and listing_id in answer.lower():
+            return False
+        if item is winner:
+            continue
+        if other_title and other_title != title and other_title in answer.lower():
+            return False
+    return answer.count(".") <= 3
+
+
+def valid_compound_recommendation_answer(
+    answer: str | None,
+    house_winner: dict[str, object],
+    land_winner: dict[str, object] | None,
+    selected: list[dict[str, object]],
+) -> bool:
+    if not answer or len(answer) > 760 or "**" in answer or "\n-" in answer or "\n*" in answer or "\n\u2022" in answer:
+        return False
+    lowered = answer.lower()
+    house_title = str(house_winner.get("title") or "").strip().lower()
+    land_title = str((land_winner or {}).get("title") or "").strip().lower()
+    if not house_title or house_title not in lowered or (land_title and land_title not in lowered):
+        return False
+    for item in [*selected, *([land_winner] if land_winner else [])]:
+        listing_id = str(item.get("id") or "").lower()
+        if listing_id and listing_id in lowered:
+            return False
+    for item in selected:
+        if item is house_winner:
+            continue
+        other_title = str(item.get("title") or "").strip().lower()
+        if other_title and other_title != house_title and other_title in lowered:
+            return False
+    return answer.count(".") <= 4
+
+
 def fallback_answer(brief: dict[str, object], recommendations: list[dict[str, object]]) -> str:
     if not recommendations:
         return "I could not find a close match in the current index. Open the filtered results and broaden the location, size, or property type to see more options."
@@ -280,7 +530,13 @@ def fallback_answer(brief: dict[str, object], recommendations: list[dict[str, ob
     )
 
 
-async def ollama_answer(message: str, brief: dict[str, object], recommendations: list[dict[str, object]], listings: list[dict[str, object]]) -> str | None:
+async def ollama_answer(
+    message: str,
+    brief: dict[str, object],
+    recommendations: list[dict[str, object]],
+    listings: list[dict[str, object]],
+    history: list[dict[str, str]] | None = None,
+) -> str | None:
     market_counts: dict[str, int] = defaultdict(int)
     for item in listings:
         market_counts[str(item.get("city") or "Nepal")] += 1
@@ -289,21 +545,48 @@ async def ollama_answer(message: str, brief: dict[str, object], recommendations:
         "recommendations": recommendations,
         "inventory": {"total": len(listings), "cities": dict(sorted(market_counts.items(), key=lambda pair: pair[1], reverse=True)[:8])},
     }
+    comparison_mode = brief.get("contextMode") == "comparison"
+    compound_mode = brief.get("contextMode") == "compound"
     system = (
         "You are the Nepal Estate Index assistant. Answer using only the supplied live-index evidence. "
         "Be concise, practical, and optimistic without making promises. Explain the strongest matching factors such as size, locality, road access, and relative asking-price position. "
         "Do not invent facts, links, returns, zoning approval, footfall, legal status, or transaction prices. "
         "Call a listing a strong match within this index, never objectively the best property. Do not output URLs; the interface adds verified internal links."
     )
+    if comparison_mode:
+        system += (
+            " The user has pinned the listings in recommendations for comparison. Analyze only those selected listings, "
+            "explicitly acknowledge the shortlist, and do not suggest or rank any unselected inventory. "
+            "Compare only prices with the same price basis and clearly state when a fact is not supplied."
+        )
+        if brief.get("singleRecommendation"):
+            system += (
+                " The user wants one decision, not a comparison report. Recommend only the listing identified by recommendedListingId. "
+                "Return no more than two short plain-text sentences. Use its human title, never listing IDs. "
+                "Do not use Markdown, bullets, headings, or mention the other selections. Give one concrete reason and advise verification before an offer."
+            )
+    elif compound_mode:
+        system += (
+            " The request contains two jobs. First, choose only the selected house identified by recommendedListingId. "
+            "Second, recommend only the additional land identified by recommendedLandListingId for the user's cafe. "
+            "Return exactly two short plain-text sentences: one for the house and one for the cafe land. "
+            "Use human titles, never listing IDs. Do not use Markdown, bullets, headings, mention other selected houses, or add more properties."
+        )
+    conversation = [
+        {"role": turn["role"], "content": turn["content"]}
+        for turn in (history or [])[-6:]
+        if turn.get("role") in {"user", "assistant"} and turn.get("content")
+    ]
     payload = {
         "model": OLLAMA_MODEL,
         "stream": False,
         "think": False,
         "messages": [
             {"role": "system", "content": system},
+            *conversation,
             {"role": "user", "content": f"User request: {message}\n\nIndex evidence:\n{json.dumps(evidence, ensure_ascii=False)}"},
         ],
-        "options": {"temperature": 0.2, "num_predict": 260},
+        "options": {"temperature": 0.15, "num_predict": 170 if compound_mode else 120 if brief.get("singleRecommendation") else 260},
     }
     try:
         async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT_SECONDS) as client:

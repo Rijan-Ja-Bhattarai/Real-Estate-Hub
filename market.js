@@ -719,6 +719,7 @@ function renderComparison() {
   elements.comparisonStatus.textContent = properties.length < 2 ? "Select at least two listings" : `${properties.length} listings pinned`;
   elements.compareCount.textContent = `${properties.length} / 4 compared`;
   addImageFallbacks(elements.comparisonGrid);
+  document.dispatchEvent(new CustomEvent("nei:comparison-change", { detail: { selectedListingIds: [...state.selectedIds] } }));
 }
 
 function setupCanvas(canvas, height) {
