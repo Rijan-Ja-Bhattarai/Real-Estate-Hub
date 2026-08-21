@@ -142,6 +142,10 @@ try {
     cards: document.querySelectorAll('.property-card').length,
     result: document.querySelector('[data-result-summary]').textContent,
     mapVisible: !document.querySelector('[data-listing-map]').hidden,
+    decorativeMapPinHidden: ['::before', '::after'].every((pseudo) => {
+      const style = getComputedStyle(document.querySelector('.listing-map-canvas'), pseudo);
+      return style.display === 'none' || style.content === 'none';
+    }),
     sourceLink: document.querySelector('.property-source-row a')?.href,
     landRateVisible: [...document.querySelectorAll('.property-price')].some((node) => node.textContent.includes('/ aana')),
     rightsNoticeVisible: Boolean(document.querySelector('.property-image-policy')),
@@ -154,6 +158,7 @@ try {
   assert(initial.cards === 6, `Expected 6 initial sale cards, found ${initial.cards}.`);
   assert(initial.result.includes("indexed") && initial.result.includes("for sale"), "Initial result summary is incorrect.");
   assert(initial.mapVisible, "Approximate listing map is not visible.");
+  assert(initial.decorativeMapPinHidden, "The obsolete decorative map pin is still visible.");
   assert(
     initial.sourceLink?.startsWith("https://") && !initial.sourceLink.startsWith(siteUrl),
     "Listing source handoff is missing.",
@@ -192,8 +197,9 @@ try {
     // enough time to replace the local placeholder before visual inspection.
     await delay(5000);
     const screenshot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
-    writeFileSync("/tmp/nei-section.png", Buffer.from(screenshot.data, "base64"));
-    console.log(`Captured ${captureSelector} to /tmp/nei-section.png.`);
+    const capturePath = join(tmpdir(), "nei-section.png");
+    writeFileSync(capturePath, Buffer.from(screenshot.data, "base64"));
+    console.log(`Captured ${captureSelector} to ${capturePath}.`);
   }
 
   const rentState = await evaluate(`(() => {

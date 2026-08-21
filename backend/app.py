@@ -23,6 +23,7 @@ LOGGER = logging.getLogger("nepal_estate_index")
 MARKET_MINIMUM_WINDOW_DAYS = 30
 MARKET_MINIMUM_OBSERVED_DAYS = 14
 MARKET_MINIMUM_DAILY_SAMPLE = 8
+NO_STORE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
 
 
 class AssistantTurn(BaseModel):
@@ -265,29 +266,33 @@ async def refresh(x_refresh_token: Annotated[str | None, Header()] = None) -> JS
 
 @app.get("/")
 def homepage() -> FileResponse:
-    return FileResponse(ROOT_DIR / "index.html", media_type="text/html")
+    return FileResponse(ROOT_DIR / "index.html", media_type="text/html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/index.html")
 def index_file() -> FileResponse:
-    return FileResponse(ROOT_DIR / "index.html", media_type="text/html")
+    return FileResponse(ROOT_DIR / "index.html", media_type="text/html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/market")
 @app.get("/market.html")
 def market_file() -> FileResponse:
-    return FileResponse(ROOT_DIR / "market.html", media_type="text/html")
+    return FileResponse(ROOT_DIR / "market.html", media_type="text/html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/properties")
 @app.get("/properties.html")
 def properties_file() -> FileResponse:
-    return FileResponse(ROOT_DIR / "properties.html", media_type="text/html")
+    return FileResponse(ROOT_DIR / "properties.html", media_type="text/html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/styles.css")
 def stylesheet() -> FileResponse:
-    return FileResponse(ROOT_DIR / "styles.css", media_type="text/css")
+    return FileResponse(
+        ROOT_DIR / "styles.css",
+        media_type="text/css",
+        headers=NO_STORE_HEADERS,
+    )
 
 
 @app.get("/script.js")

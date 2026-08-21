@@ -11,8 +11,18 @@
     <title>Nepal Estate Index — Find your place</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="assets/images/property-image-unavailable.svg" as="image" fetchpriority="high" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260821-map-container-reset" />
     <link rel="stylesheet" href="assistant.css" />
+    <style>
+      /* Safety override for browsers that retained the former decorative map pin. */
+      .listing-map-frame::before,
+      .listing-map-frame::after,
+      .listing-map-canvas::before,
+      .listing-map-canvas::after {
+        content: none !important;
+        display: none !important;
+      }
+    </style>
     <script src="script.js" defer></script>
     <script src="assistant.js" defer></script>
   </head>
@@ -235,7 +245,7 @@
 
           <p class="result-summary" data-result-summary aria-live="polite" tabindex="-1">Loading indexed properties…</p>
           <section class="listing-map" data-listing-map aria-labelledby="listing-map-title" hidden>
-            <div class="listing-map-frame">
+            <div class="listing-map-canvas">
               <iframe
                 title="Approximate property locality map"
                 loading="eager"

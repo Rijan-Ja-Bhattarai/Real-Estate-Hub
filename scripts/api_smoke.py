@@ -21,6 +21,7 @@ from backend.config import DB_PATH, EXPORT_PATH
 from backend.db import connect, database_stats, initialise, list_listings, list_market_series, upsert_listings
 from backend.ingest import export_snapshot, record_is_safe, seed_from_snapshot
 from backend.sources.base import ListingRecord
+from backend.sources.ghar_sansar import GharSansarSource
 from backend.sources.lalpurja import LalpurjaSource
 
 
@@ -398,6 +399,18 @@ async def main() -> None:
         area_label="Area on source",
     )
     assert not record_is_safe(unsafe_record, "test-source")
+    assert GharSansarSource._image_url("") == ""
+    ghar_sansar_record = GharSansarSource._record(
+        {
+            "source_url": "https://www.gharsansarnepal.com/Land-in-nepal/9999",
+            "title": "Image parser smoke listing",
+            "image_url": "",
+            "price": "NPR 1 crore",
+            "purpose": "buy",
+        },
+        '<meta property="og:image" content="https://www.gharsansarnepal.com/image/test-listing.jpg">',
+    )
+    assert ghar_sansar_record and ghar_sansar_record.image_url.endswith("/image/test-listing.jpg")
     unsafe_record.title = "Safe public title"
     unsafe_record.raw_facts = {"seller": {"email": "owner@example.com", "phone": "9812345678"}}
     assert not record_is_safe(unsafe_record, "test-source")

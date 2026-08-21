@@ -25,6 +25,8 @@ const state = {
 };
 
 const elements = {
+  workspace: document.querySelector(".workspace-grid"),
+  analyticsRail: document.querySelector("[data-analytics-rail]"),
   feedState: document.querySelector("[data-feed-state]"),
   asOf: document.querySelector("[data-as-of]"),
   coverage: document.querySelector("[data-coverage]"),
@@ -1046,7 +1048,7 @@ function drawScenario(property, history) {
 }
 
 function focusedProperty(properties = filteredProperties()) {
-  return state.properties.find((property) => property.id === state.focusedId) || properties.find((property) => peerStats(property)) || properties[0] || null;
+  return properties.find((property) => property.id === state.focusedId) || null;
 }
 
 function renderKpis(properties, focus) {
@@ -1068,8 +1070,10 @@ function renderKpis(properties, focus) {
 
 function renderAnalytics(properties, { loadHistory = true } = {}) {
   const focus = focusedProperty(properties);
-  if (focus && state.focusedId !== focus.id) state.focusedId = focus.id;
   renderKpis(properties, focus);
+  elements.analyticsRail.hidden = !focus;
+  elements.workspace.classList.toggle("has-focus", Boolean(focus));
+  if (!focus) return;
   drawDistribution(focus);
   let history = historyFor(focus);
   if (focus && peerStats(focus) && !history && state.feedMode === "snapshot") {
@@ -1084,7 +1088,7 @@ function renderAll({ resetScroll = false } = {}) {
   populateBases();
   const properties = filteredProperties();
   if (!properties.some((property) => property.id === state.focusedId)) {
-    state.focusedId = properties.find((property) => peerStats(property))?.id || properties[0]?.id || null;
+    state.focusedId = null;
   }
   renderInventory(properties);
   renderComparison();
@@ -1103,6 +1107,7 @@ function toggleComparison(id, { restoreInventoryFocus = false } = {}) {
   const existingIndex = state.selectedIds.indexOf(id);
   if (existingIndex >= 0) {
     state.selectedIds.splice(existingIndex, 1);
+    if (state.focusedId === id) state.focusedId = state.selectedIds[0] || null;
   } else if (state.selectedIds.length >= 4) {
     showToast("Four listings are already pinned. Remove one before adding another.");
     return;
@@ -1145,6 +1150,8 @@ function resetFilters() {
   state.sort = "signal-high";
   state.search = "";
   state.horizon = 12;
+  state.selectedIds = [];
+  state.focusedId = null;
   elements.city.value = state.city;
   elements.type.value = state.type;
   elements.sort.value = state.sort;
@@ -1155,9 +1162,8 @@ function resetFilters() {
 }
 
 function chooseInitialProperties() {
-  const candidates = filteredProperties().filter((property) => peerStats(property));
-  state.selectedIds = candidates.slice(0, 2).map((property) => property.id);
-  state.focusedId = state.selectedIds[0] || filteredProperties()[0]?.id || null;
+  state.selectedIds = [];
+  state.focusedId = null;
 }
 
 document.querySelectorAll("[data-purpose]").forEach((button) => {
@@ -1225,6 +1231,7 @@ elements.comparisonGrid.addEventListener("click", (event) => {
 
 document.querySelector("[data-clear-comparison]").addEventListener("click", () => {
   state.selectedIds = [];
+  state.focusedId = null;
   renderAll();
 });
 

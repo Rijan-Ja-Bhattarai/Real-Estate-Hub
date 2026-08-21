@@ -410,10 +410,14 @@ img {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(24rem, 0.78fr) minmax(34rem, 1.22fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 1rem;
   margin-top: 0.8rem;
+}
+
+.workspace-grid.has-focus {
+  grid-template-columns: minmax(24rem, 0.78fr) minmax(34rem, 1.22fr);
 }
 
 .inventory-panel,
@@ -1126,7 +1130,7 @@ img {
     height: 100%;
   }
 
-  .workspace-grid {
+  .workspace-grid.has-focus {
     grid-template-columns: minmax(22rem, 0.85fr) minmax(29rem, 1.15fr);
   }
 }
@@ -1140,7 +1144,8 @@ img {
     display: none;
   }
 
-  .workspace-grid {
+  .workspace-grid,
+  .workspace-grid.has-focus {
     grid-template-columns: 1fr;
   }
 

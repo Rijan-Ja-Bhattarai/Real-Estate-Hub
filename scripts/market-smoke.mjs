@@ -83,7 +83,7 @@ async function waitForInventory() {
       rows: document.querySelectorAll('.inventory-row').length,
       comparisons: document.querySelectorAll('.comparison-card').length
     })`);
-    if (["interactive", "complete"].includes(ready.document) && ready.busy === "false" && ready.rows > 0 && ready.comparisons === 2) return;
+    if (["interactive", "complete"].includes(ready.document) && ready.busy === "false" && ready.rows > 0 && ready.comparisons === 0) return;
     await delay(100);
   }
   throw new Error("The market inventory did not finish loading with its initial comparison set.");
@@ -166,7 +166,6 @@ try {
   });
   await command("Page.navigate", { url: marketUrl });
   await waitForInventory();
-  await waitForHistoryState();
 
   const initial = await evaluate(`(() => {
     const rows = [...document.querySelectorAll('.inventory-row')];
@@ -183,6 +182,7 @@ try {
       compareCount: document.querySelector('[data-compare-count]').textContent.trim(),
       comparisonStatus: document.querySelector('[data-comparison-status]').textContent.trim(),
       selectedRows: document.querySelectorAll('[data-toggle-compare][aria-pressed="true"]').length,
+      analyticsHidden: document.querySelector('[data-analytics-rail]').hidden,
       feedState: document.querySelector('[data-feed-state]').textContent.trim(),
       analysisEyebrow: document.querySelector('[data-analysis-eyebrow]').textContent.trim(),
       historyStatus: document.querySelector('[data-history-status]').textContent.trim(),
@@ -197,20 +197,18 @@ try {
   assert(initial.type === "House", `Expected House as the default property type, found ${initial.type}.`);
   assert(initial.rows > 2, `Expected at least three default House sale rows, found ${initial.rows}.`);
   assert(initial.houseRows, "Default inventory contains a non-House or non-sale listing.");
-  assert(initial.comparisons === 2 && initial.uniqueComparisons === 2, "The board did not pin two distinct initial comparisons.");
-  assert(initial.compareCount === "2 / 4 compared", `Unexpected initial comparison count: ${initial.compareCount}.`);
-  assert(initial.comparisonStatus === "2 listings pinned", "Initial comparison status is incorrect.");
-  assert(initial.selectedRows === 2, `Expected two selected inventory rows, found ${initial.selectedRows}.`);
+  assert(initial.comparisons === 0 && initial.uniqueComparisons === 0, "The board selected comparisons before the user chose a listing.");
+  assert(initial.compareCount === "0 / 4 compared", `Unexpected initial comparison count: ${initial.compareCount}.`);
+  assert(initial.comparisonStatus === "Select at least two listings", "Initial comparison status is incorrect.");
+  assert(initial.selectedRows === 0, `Expected no initially selected rows, found ${initial.selectedRows}.`);
+  assert(initial.analyticsHidden, "Analytics graphs are visible before a listing is selected.");
   const liveFeed = initial.feedState.includes("Live API");
   assert(liveFeed || initial.feedState.includes("Deployable snapshot"), `Unknown feed mode: ${initial.feedState}.`);
-  assert(
-    initial.historyStatus.includes("History collecting")
-      || initial.historyStatus.includes("met the history threshold")
-      || initial.historyStatus.includes("unavailable in this static snapshot"),
-    `Expected a settled history state, found: ${initial.historyStatus}.`,
-  );
   assert(new Set(initial.propertyTypes).size === initial.propertyTypes.length && initial.propertyTypes.includes("House"), "The data-derived property options are missing, empty, or duplicated.");
   assert(!initial.bodyOverflow && !initial.documentOverflow, "Desktop viewport has horizontal overflow.");
+
+  await evaluate(`document.querySelector('[data-focus-property]')?.click()`);
+  await waitForHistoryState();
 
   const comparisonSelection = await evaluate(`(() => {
     const addButton = document.querySelector('[data-toggle-compare][aria-pressed="false"]');
@@ -225,8 +223,8 @@ try {
     };
   })()`);
   assert(Boolean(comparisonSelection.id), "No unselected listing was available to add to comparison.");
-  assert(comparisonSelection.cardsAfterAdd === 3, `Adding a comparison produced ${comparisonSelection.cardsAfterAdd} cards instead of 3.`);
-  assert(comparisonSelection.countAfterAdd === "3 / 4 compared", "Comparison count did not update after selection.");
+  assert(comparisonSelection.cardsAfterAdd === 1, `Adding a comparison produced ${comparisonSelection.cardsAfterAdd} cards instead of 1.`);
+  assert(comparisonSelection.countAfterAdd === "1 / 4 compared", "Comparison count did not update after selection.");
   assert(comparisonSelection.selectedAfterAdd === "true" && comparisonSelection.removePresent, "Selected comparison state was not reflected across the board.");
 
   const comparisonRemoval = await evaluate(`(() => {
@@ -239,8 +237,11 @@ try {
       removed: !document.querySelector('[data-comparison-id="' + CSS.escape(id) + '"]')
     };
   })()`);
-  assert(comparisonRemoval.cards === 2 && comparisonRemoval.count === "2 / 4 compared", "Removing a comparison did not restore the initial count.");
+  assert(comparisonRemoval.cards === 0 && comparisonRemoval.count === "0 / 4 compared", "Removing a comparison did not clear the selection.");
   assert(comparisonRemoval.selected === "false" && comparisonRemoval.removed, "Removed comparison is still selected or rendered.");
+
+  await evaluate(`(() => { document.querySelector('[data-focus-property]')?.click(); document.querySelector('[data-toggle-compare][aria-pressed="false"]')?.click(); })()`);
+  await waitForHistoryState();
 
   const horizon = await evaluate(`(() => {
     const button = document.querySelector('[data-horizon="24"]');
@@ -260,6 +261,7 @@ try {
 
   const pinLimit = await evaluate(`(() => {
     const unselected = () => [...document.querySelectorAll('[data-toggle-compare][aria-pressed="false"]')];
+    unselected()[0]?.click();
     unselected()[0]?.click();
     unselected()[0]?.click();
     const fifth = unselected()[0];
@@ -333,10 +335,13 @@ try {
     };
   })()`);
   assert(method.opened.expanded === "true" && !method.opened.hidden, "Method panel did not open.");
-  assert(method.opened.text.includes("mean-reversion scenario") && method.opened.text.includes("not a valuation"), "Method panel is missing its model limitations.");
+  assert(method.opened.text.includes("peer midpoint") && method.opened.text.includes("Upside"), "Method panel is missing its upside explanation.");
   assert(method.closed.expanded === "false" && method.closed.hidden, "Method panel did not close.");
 
-  await evaluate(`document.querySelector('[data-reset]').click()`);
+  const resetState = await evaluate(`(() => { document.querySelector('[data-reset]').click(); return { analyticsHidden: document.querySelector('[data-analytics-rail]').hidden }; })()`);
+  assert(resetState.analyticsHidden, "Reset left analytics visible without a selected listing.");
+  await evaluate(`document.querySelector('[data-focus-property]')?.click()`);
+  await waitForHistoryState();
   const canvases = await evaluate(`(() => [...document.querySelectorAll('canvas')].map((canvas) => {
     const context = canvas.getContext('2d');
     const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -429,6 +434,7 @@ try {
   });
   await command("Page.reload", { ignoreCache: true });
   await waitForInventory();
+  await evaluate(`document.querySelector('[data-focus-property]')?.click()`);
   await waitForHistoryState("observed");
   const observedHistory = await evaluate(`({
     eyebrow: document.querySelector('[data-analysis-eyebrow]').textContent.trim(),
@@ -448,7 +454,7 @@ try {
   assert(observedHistory.feedState.includes("Live API · 251 listings"), `The live paginated inventory was incomplete or mislabeled: ${observedHistory.feedState}.`);
   assert(observedHistory.feedClass.includes("is-stale") && observedHistory.coverage.includes("1 source alert"), "A degraded source state was not surfaced in the feed badge.");
   assert(observedHistory.horizonHidden && observedHistory.chartLabel.startsWith("Observed peer median asking prices"), "Observed history did not update the chart and controls.");
-  assert(observedHistory.status.includes("met the history threshold") && observedHistory.method.includes("not a valuation") && observedHistory.coverageLabel === "Coverage", "Observed-history disclosure is incomplete.");
+  assert(observedHistory.status.includes("met the history threshold") && observedHistory.method.includes("median current ask") && observedHistory.coverageLabel === "Coverage", "Observed-history explanation is incomplete.");
   assert(observedHistory.inventorySignals.some((label) => label.startsWith("observed")) && observedHistory.comparisonLabels.includes("Observed median trend"), "Observed history did not replace matching tape and comparison signals.");
 
   await command("Emulation.setDeviceMetricsOverride", {

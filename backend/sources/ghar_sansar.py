@@ -46,9 +46,18 @@ class GharSansarSource:
 
     @staticmethod
     def _image_url(value: object) -> str:
-        url = urljoin(f"{GharSansarSource.base_url}/", clean_text(value))
+        if isinstance(value, dict):
+            value = value.get("url") or value.get("contentUrl") or value.get("@id")
+        elif isinstance(value, list):
+            value = next((candidate for candidate in value if candidate), "")
+        candidate = clean_text(value)
+        if not candidate:
+            return ""
+        url = urljoin(f"{GharSansarSource.base_url}/", candidate)
         parsed = urlparse(url)
         if parsed.hostname not in {"gharsansarnepal.com", "www.gharsansarnepal.com"}:
+            return ""
+        if parsed.path in {"", "/"}:
             return ""
         return quote(url, safe=":/?=&%")
 
@@ -208,7 +217,12 @@ class GharSansarSource:
         locality = cls._locality(location, title, city)
         point = locate(f"{locality} {location} {title}", city)
 
-        image = cls._image_url(structured.get("image")) or card["image_url"]
+        social_image = soup.select_one('meta[property="og:image"][content]')
+        image = (
+            cls._image_url(structured.get("image"))
+            or cls._image_url(social_image.get("content") if social_image else "")
+            or card["image_url"]
+        )
         description = short_excerpt(structured.get("description"))
         area = cls._known_detail(soup, "land area") or cls._known_detail(soup, "house area")
         bathrooms = optional_int(cls._known_detail(soup, "bathrooms"))
