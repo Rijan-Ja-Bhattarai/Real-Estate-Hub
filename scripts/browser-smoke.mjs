@@ -87,6 +87,19 @@ async function waitForReady() {
   throw new Error("The site or listing database did not finish loading.");
 }
 
+async function waitForBrowseReady() {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const ready = await evaluate(`({
+      path: location.pathname,
+      busy: document.querySelector('[data-browse-list]')?.getAttribute('aria-busy'),
+      cards: document.querySelectorAll('.browse-card').length
+    })`);
+    if (ready.path === "/properties" && ready.busy === "false" && ready.cards > 0) return;
+    await delay(100);
+  }
+  throw new Error("The dedicated property browser did not finish loading.");
+}
+
 function assert(condition, message) {
   if (!condition) failures.push(message);
 }
@@ -133,7 +146,9 @@ try {
     landRateVisible: [...document.querySelectorAll('.property-price')].some((node) => node.textContent.includes('/ aana')),
     rightsNoticeVisible: Boolean(document.querySelector('.property-image-policy')),
     horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
-    heroVisible: document.querySelector('#hero-title').getBoundingClientRect().height > 0
+    heroVisible: document.querySelector('#hero-title').getBoundingClientRect().height > 0,
+    assistantVisible: Boolean(document.querySelector('[data-nei-assistant]')),
+    buyRoute: document.querySelector('.desktop-nav a')?.getAttribute('href')
   })`);
   assert(initial.title.includes("Nepal Estate Index"), "Document title is missing the product name.");
   assert(initial.cards === 6, `Expected 6 initial sale cards, found ${initial.cards}.`);
@@ -146,6 +161,8 @@ try {
   assert(initial.rightsNoticeVisible, "Source-image rights status is not surfaced beside previews.");
   assert(!initial.horizontalOverflow, "Desktop viewport has horizontal overflow.");
   assert(initial.heroVisible, "Hero heading is not visible.");
+  assert(initial.assistantVisible, "The site-wide property assistant is missing.");
+  assert(initial.buyRoute === "/properties?purpose=buy", "Buy does not point to the dedicated property browser.");
 
   const landState = await evaluate(`(() => {
     document.querySelector('[data-filter="Land"]').click();
@@ -193,20 +210,29 @@ try {
   assert(rentState.budgetLabel.includes("monthly"), "Rental budget did not switch to a monthly basis.");
   assert(rentState.budgetOption.includes("/ mo"), "Rental budget options are missing monthly units.");
 
-  const commercialState = await evaluate(`(() => {
+  await evaluate(`(() => {
     const form = document.querySelector('[data-search-form]');
     form.elements.type.value = 'Commercial';
     form.requestSubmit();
-    return {
-      cards: document.querySelectorAll('.property-card').length,
-      badges: [...document.querySelectorAll('.property-badge')].map((node) => node.textContent)
-    };
   })()`);
+  await waitForBrowseReady();
+  const commercialState = await evaluate(`({
+    path: location.pathname,
+    purpose: new URLSearchParams(location.search).get('purpose'),
+    type: document.querySelector('[name="type"]').value,
+    cards: document.querySelectorAll('.browse-card').length,
+    types: [...document.querySelectorAll('.browse-card-kicker')].map((node) => node.textContent)
+  })`);
+  assert(commercialState.path === "/properties", "Landing search did not redirect to the internal property browser.");
+  assert(commercialState.purpose === "rent", "Landing search did not preserve the Rent purpose.");
   assert(commercialState.cards > 0, "Commercial rental filtering returned no real source records.");
   assert(
-    commercialState.badges.every((badge) => badge.includes("Commercial")),
+    commercialState.type === "Commercial" && commercialState.types.every((value) => value.includes("Commercial")),
     "Commercial results contain a mismatched normalized type.",
   );
+
+  await command("Page.navigate", { url: siteUrl });
+  await waitForReady();
 
   const dialogState = await evaluate(`(() => {
     document.querySelector('.property-card [data-open-property]').click();

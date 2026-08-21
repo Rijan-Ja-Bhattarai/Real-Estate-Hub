@@ -7,7 +7,12 @@ const sourceRoot = new URL("../", import.meta.url);
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 
-for (const file of ["index.html", "styles.css", "script.js", "market.html", "market.css", "market.js"]) {
+for (const file of [
+  "index.html", "styles.css", "script.js",
+  "properties.html", "properties.css", "properties.js",
+  "market.html", "market.css", "market.js",
+  "assistant.css", "assistant.js",
+]) {
   await cp(new URL(file, sourceRoot), new URL(file, outputDirectory));
 }
 await mkdir(new URL("data/", outputDirectory), { recursive: true });
@@ -39,10 +44,17 @@ const workerAssets = [
   { route: "/market", file: "market.html", type: "text/html; charset=utf-8", cache: "no-cache" },
   { route: "/market/", file: "market.html", type: "text/html; charset=utf-8", cache: "no-cache" },
   { route: "/market.html", file: "market.html", type: "text/html; charset=utf-8", cache: "no-cache" },
+  { route: "/properties", file: "properties.html", type: "text/html; charset=utf-8", cache: "no-cache" },
+  { route: "/properties/", file: "properties.html", type: "text/html; charset=utf-8", cache: "no-cache" },
+  { route: "/properties.html", file: "properties.html", type: "text/html; charset=utf-8", cache: "no-cache" },
   { route: "/styles.css", file: "styles.css", type: "text/css; charset=utf-8", cache: "no-cache" },
   { route: "/script.js", file: "script.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
+  { route: "/properties.css", file: "properties.css", type: "text/css; charset=utf-8", cache: "no-cache" },
+  { route: "/properties.js", file: "properties.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   { route: "/market.css", file: "market.css", type: "text/css; charset=utf-8", cache: "no-cache" },
   { route: "/market.js", file: "market.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
+  { route: "/assistant.css", file: "assistant.css", type: "text/css; charset=utf-8", cache: "no-cache" },
+  { route: "/assistant.js", file: "assistant.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   {
     route: "/data/listings.json",
     file: "data/listings.json",

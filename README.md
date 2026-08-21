@@ -9,15 +9,16 @@ python3 -m pip install -r requirements.txt
 npm start
 ```
 
-Open `http://localhost:4173`. FastAPI serves the site and these read routes:
+Open `http://localhost:4173`. FastAPI serves the site and these application routes:
 
 - `GET /api/health`
 - `GET /api/listings`
 - `GET /api/market/series`
 - `GET /api/sources`
+- `POST /api/assistant/chat`
 - Interactive API documentation at `/docs`
 
-The dedicated market workspace is available at `http://localhost:4173/market`.
+Dedicated workspaces are available at `http://localhost:4173/properties` for Buy, Rent, and location-map browsing, and at `http://localhost:4173/market` for market analysis.
 
 Useful listing query parameters are `purpose`, `city`, `type`, `max_price`, `source`, `limit`, and `offset`.
 
@@ -50,7 +51,17 @@ The project owner has attested that the publishers authorized use of their listi
 
 ## Maps
 
-Each listing has a map handoff. If a source does not provide coordinates, the database uses a public locality or city centroid and sets `locationPrecision` accordingly. The interface labels these as approximate, displays the area with a Google Maps place embed, and provides a no-key Google Maps search link. It never presents a neighborhood centroid as the exact house or parcel.
+Each listing has an in-site OpenStreetMap view. If a source does not provide coordinates, the database uses a public locality or city centroid and sets `locationPrecision` accordingly. Selecting “Show on map” updates the embedded map immediately without navigating away. The interface never presents a neighborhood centroid as the exact house or parcel.
+
+## Local Ollama assistant
+
+The assistant appears on the landing, property-search, and market pages. The server ranks current database listings first, then asks a local Ollama model to explain the strongest factual matches. Recommendation links always point to `/properties` inside this site. If Ollama is not running, the assistant falls back to deterministic database matching instead of failing.
+
+The defaults expect Ollama at `http://127.0.0.1:11434` with the locally available `gemma4:e4b` model. Configure another local setup with:
+
+- `INDEX_OLLAMA_BASE_URL`
+- `INDEX_OLLAMA_MODEL`
+- `INDEX_OLLAMA_TIMEOUT_SECONDS`
 
 Unit-rate prices are stored only when the publisher explicitly supplies a basis such as per-aana, per-ropani, or per-square-foot; they are excluded from total-budget comparisons. Unlabelled sale prices remain totals and rentals default to monthly unless the source says otherwise. Visitors should still confirm all amounts and units on the original listing.
 

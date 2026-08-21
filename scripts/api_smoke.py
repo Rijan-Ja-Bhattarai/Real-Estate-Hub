@@ -9,6 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 os.environ["INDEX_ENABLE_SCHEDULER"] = "false"
+os.environ["INDEX_OLLAMA_BASE_URL"] = "http://127.0.0.1:1"
 TEST_DATABASE_DIRECTORY = TemporaryDirectory(prefix="nei-api-smoke-")
 os.environ["INDEX_DB_PATH"] = str(Path(TEST_DATABASE_DIRECTORY.name) / "real_estate.db")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -33,6 +34,10 @@ async def main() -> None:
             assert health_payload["status"] in {"ok", "degraded"}
             assert health_payload["freshness"]["state"] in {"fresh", "stale"}
             assert health_payload["database"]["listing_count"] >= 1
+            properties_page = await client.get("/properties")
+            assert properties_page.status_code == 200
+            assert "data-browse-filters" in properties_page.text
+            assert (await client.get("/assistant.js")).status_code == 200
 
             listings_response = await client.get("/api/listings", params={"purpose": "buy", "limit": 6})
             assert listings_response.status_code == 200
@@ -127,6 +132,25 @@ async def main() -> None:
             assert all(item["priceBasis"] == "total" for item in budget_response.json()["items"])
             assert (await client.get("/api/listings", params={"purpose": "lease"})).status_code == 422
             assert (await client.post("/api/admin/refresh")).status_code == 404
+
+            assistant_response = await client.post(
+                "/api/assistant/chat",
+                json={"message": "I want 1 ropani of land for a cafe", "page": "/market"},
+            )
+            assert assistant_response.status_code == 200
+            assistant_payload = assistant_response.json()
+            assert assistant_payload["mode"] == "database-fallback"
+            assert assistant_payload["answer"]
+            assert assistant_payload["filterUrl"].startswith("/properties?")
+            assert assistant_payload["recommendations"]
+            assert all(
+                item["type"] == "Land"
+                and item["purpose"] == "buy"
+                and item["url"].startswith("/properties?")
+                and item["reason"]
+                for item in assistant_payload["recommendations"]
+            )
+            assert (await client.post("/api/assistant/chat", json={"message": ""})).status_code == 422
 
             all_listings = (await client.get("/api/listings", params={"limit": 250})).json()
             assert len(all_listings["items"]) == all_listings["total"] >= 9

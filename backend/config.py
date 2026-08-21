@@ -18,6 +18,9 @@ SOURCE_REFRESH_TIMEOUT_SECONDS = max(
 )
 ENABLE_SCHEDULER = os.getenv("INDEX_ENABLE_SCHEDULER", "true").lower() in {"1", "true", "yes", "on"}
 REFRESH_TOKEN = os.getenv("INDEX_REFRESH_TOKEN", "")
+OLLAMA_BASE_URL = os.getenv("INDEX_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("INDEX_OLLAMA_MODEL", "gemma4:e4b")
+OLLAMA_TIMEOUT_SECONDS = max(3, min(int(os.getenv("INDEX_OLLAMA_TIMEOUT_SECONDS", "20")), 60))
 USER_AGENT = os.getenv(
     "INDEX_USER_AGENT",
     "NepalEstateIndex/0.1 (+source-attributed property search; contact: local-development)",

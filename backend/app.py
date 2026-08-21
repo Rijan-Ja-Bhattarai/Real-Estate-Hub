@@ -6,13 +6,15 @@ import secrets
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-from backend.config import ENABLE_SCHEDULER, EXPORT_PATH, REFRESH_HOURS, REFRESH_TOKEN, ROOT_DIR
+from backend.assistant import fallback_answer, ollama_answer, rank_listings
+from backend.config import ENABLE_SCHEDULER, EXPORT_PATH, OLLAMA_MODEL, REFRESH_HOURS, REFRESH_TOKEN, ROOT_DIR
 from backend.db import database_stats, initialise, list_listings, list_market_series, list_sources
 from backend.ingest import export_snapshot, refresh_all, seed_from_snapshot
 
@@ -21,6 +23,17 @@ LOGGER = logging.getLogger("nepal_estate_index")
 MARKET_MINIMUM_WINDOW_DAYS = 30
 MARKET_MINIMUM_OBSERVED_DAYS = 14
 MARKET_MINIMUM_DAILY_SAMPLE = 8
+
+
+class AssistantTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=1200)
+
+
+class AssistantRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=1200)
+    history: list[AssistantTurn] = Field(default_factory=list, max_length=8)
+    page: str = Field(default="/", max_length=200)
 
 
 def report_refresh_failures(results: list[dict[str, object]]) -> None:
@@ -131,8 +144,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Nepal Estate Index API",
-    version="0.2.0",
-    description="Read-only, source-attributed property search backed by SQLite.",
+    version="0.3.0",
+    description="Source-attributed property search and a database-grounded local assistant backed by SQLite.",
     lifespan=lifespan,
 )
 
@@ -226,6 +239,20 @@ async def market_series(
     }
 
 
+@app.post("/api/assistant/chat")
+async def assistant_chat(request: AssistantRequest) -> dict[str, object]:
+    items, _ = list_listings(limit=250)
+    brief, recommendations = rank_listings(request.message, items)
+    answer = await ollama_answer(request.message, brief, recommendations, items)
+    return {
+        "answer": answer or fallback_answer(brief, recommendations),
+        "recommendations": recommendations,
+        "filterUrl": brief["filterUrl"],
+        "mode": "ollama" if answer else "database-fallback",
+        "model": OLLAMA_MODEL,
+    }
+
+
 @app.post("/api/admin/refresh")
 async def refresh(x_refresh_token: Annotated[str | None, Header()] = None) -> JSONResponse:
     if not REFRESH_TOKEN:
@@ -252,6 +279,12 @@ def market_file() -> FileResponse:
     return FileResponse(ROOT_DIR / "market.html", media_type="text/html")
 
 
+@app.get("/properties")
+@app.get("/properties.html")
+def properties_file() -> FileResponse:
+    return FileResponse(ROOT_DIR / "properties.html", media_type="text/html")
+
+
 @app.get("/styles.css")
 def stylesheet() -> FileResponse:
     return FileResponse(ROOT_DIR / "styles.css", media_type="text/css")
@@ -270,6 +303,26 @@ def market_stylesheet() -> FileResponse:
 @app.get("/market.js")
 def market_javascript() -> FileResponse:
     return FileResponse(ROOT_DIR / "market.js", media_type="text/javascript")
+
+
+@app.get("/properties.css")
+def properties_stylesheet() -> FileResponse:
+    return FileResponse(ROOT_DIR / "properties.css", media_type="text/css")
+
+
+@app.get("/properties.js")
+def properties_javascript() -> FileResponse:
+    return FileResponse(ROOT_DIR / "properties.js", media_type="text/javascript")
+
+
+@app.get("/assistant.css")
+def assistant_stylesheet() -> FileResponse:
+    return FileResponse(ROOT_DIR / "assistant.css", media_type="text/css")
+
+
+@app.get("/assistant.js")
+def assistant_javascript() -> FileResponse:
+    return FileResponse(ROOT_DIR / "assistant.js", media_type="text/javascript")
 
 
 @app.get("/data/listings.json")

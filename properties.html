@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Filter homes, apartments, land, and commercial property for sale or rent across Nepal." />
+    <meta name="theme-color" content="#363c46" />
+    <title>Browse properties | Nepal Estate Index</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/properties.css" />
+    <link rel="stylesheet" href="/assistant.css" />
+    <script src="/properties.js" defer></script>
+    <script src="/assistant.js" defer></script>
+  </head>
+  <body class="browse-body">
+    <a class="skip-link" href="#property-results">Skip to properties</a>
+    <div class="page-shell browse-shell">
+      <header class="site-header browse-header">
+        <a class="brand" href="/" aria-label="Nepal Estate Index, home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span class="brand-name">Nepal Estate<br />Index</span>
+        </a>
+        <nav class="desktop-nav browse-nav" aria-label="Primary navigation">
+          <a href="/properties?purpose=buy" data-nav-purpose="buy">Buy</a>
+          <a href="/properties?purpose=rent" data-nav-purpose="rent">Rent</a>
+          <a href="/properties?view=map">Locations</a>
+          <a href="/market">Market</a>
+        </nav>
+        <button class="saved-button" type="button" data-browse-saved>Saved <span class="saved-count" data-saved-count>0</span></button>
+      </header>
+
+      <main>
+        <section class="browse-hero" aria-labelledby="browse-title">
+          <div>
+            <p class="eyebrow"><span></span> Search the live property index</p>
+            <h1 id="browse-title" data-browse-title>Homes and land<br /><em>for sale.</em></h1>
+          </div>
+          <p data-browse-intro>Shape the search around your budget, preferred area, property type, and space needs.</p>
+        </section>
+
+        <form class="browse-filters" data-browse-filters>
+          <div class="browse-purpose" role="group" aria-label="Listing purpose">
+            <button class="is-active" type="button" data-purpose="buy" aria-pressed="true">Buy</button>
+            <button type="button" data-purpose="rent" aria-pressed="false">Rent</button>
+          </div>
+          <label class="browse-search browse-field">
+            <span>Search</span>
+            <input type="search" name="query" placeholder="Locality, title, or source" autocomplete="off" />
+          </label>
+          <label class="browse-field">
+            <span>Location</span>
+            <select name="city"><option value="all">Anywhere in Nepal</option></select>
+          </label>
+          <label class="browse-field">
+            <span>Property</span>
+            <select name="type"><option value="all">Any type</option></select>
+          </label>
+          <label class="browse-field">
+            <span data-max-price-label>Maximum total ask</span>
+            <input type="number" name="maxPrice" min="0" step="1000" placeholder="Any budget" inputmode="numeric" />
+          </label>
+          <label class="browse-field">
+            <span>Bedrooms</span>
+            <select name="beds">
+              <option value="all">Any</option>
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="3">3+</option>
+              <option value="4">4+</option>
+              <option value="5">5+</option>
+            </select>
+          </label>
+          <label class="browse-field browse-area-field">
+            <span>Minimum land area</span>
+            <span class="browse-area-inputs">
+              <input type="number" name="minArea" min="0" step="0.25" placeholder="Any" inputmode="decimal" />
+              <select name="areaUnit" aria-label="Area unit">
+                <option value="aana">aana</option>
+                <option value="ropani">ropani</option>
+                <option value="sqft">sq ft</option>
+                <option value="kattha">kattha</option>
+              </select>
+            </span>
+          </label>
+          <label class="browse-field">
+            <span>Order</span>
+            <select name="sort">
+              <option value="newest">Newest indexed</option>
+              <option value="price-low">Price · low first</option>
+              <option value="price-high">Price · high first</option>
+              <option value="area-high">Largest area first</option>
+            </select>
+          </label>
+          <div class="browse-filter-actions">
+            <button type="submit">Apply filters <span aria-hidden="true">↗</span></button>
+            <button type="button" data-clear-browse>Clear</button>
+          </div>
+        </form>
+
+        <section class="assistant-arrival" data-assistant-arrival hidden>
+          <span>AI MATCH</span>
+          <div><strong data-assistant-arrival-title>Recommended property selected</strong><p>Review the verified listing facts and locality map below.</p></div>
+          <button type="button" data-dismiss-arrival aria-label="Dismiss recommendation note">×</button>
+        </section>
+
+        <section class="browse-results" id="property-results" aria-labelledby="results-title">
+          <div class="browse-results-column">
+            <header class="browse-results-header">
+              <div><p>LIVE INVENTORY</p><h2 id="results-title">Matching properties</h2></div>
+              <span data-result-count role="status" aria-live="polite">Loading listings…</span>
+            </header>
+            <div class="browse-list" data-browse-list aria-busy="true">
+              <div class="browse-loading"></div><div class="browse-loading"></div><div class="browse-loading"></div>
+            </div>
+            <div class="browse-empty" data-browse-empty hidden>
+              <strong>No exact matches yet.</strong>
+              <p>Try a broader location, budget, or minimum area.</p>
+              <button type="button" data-clear-browse>Clear all filters</button>
+            </div>
+          </div>
+
+          <aside class="browse-map-column" aria-label="Selected property and map">
+            <div class="browse-map-card">
+              <div class="browse-map-heading">
+                <div><span data-map-precision>Approximate locality</span><h2 data-map-title>Choose a property</h2></div>
+                <span class="browse-map-live"><i></i> In-site map</span>
+              </div>
+              <iframe title="Selected property locality map" referrerpolicy="strict-origin-when-cross-origin" data-map-frame></iframe>
+              <p class="browse-map-note" data-map-note>Select “Show on map” on any property. The map updates here without leaving Nepal Estate Index.</p>
+            </div>
+            <article class="browse-detail" data-selected-detail hidden></article>
+          </aside>
+        </section>
+      </main>
+
+      <footer class="browse-footer">
+        <span>© <span data-year></span> Nepal Estate Index</span>
+        <nav aria-label="Footer navigation"><a href="/">Home</a><a href="/properties?purpose=buy">Buy</a><a href="/properties?purpose=rent">Rent</a><a href="/market">Market</a></nav>
+      </footer>
+    </div>
+  </body>
+</html>

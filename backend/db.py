@@ -786,7 +786,12 @@ def list_listings(
             clauses.append(f"{column} = ?")
             parameters.append(value)
     if max_price is not None:
-        clauses.append("l.price_basis IN ('total', 'monthly') AND l.price_npr IS NOT NULL AND l.price_npr <= ?")
+        if purpose == "buy":
+            clauses.append("l.price_basis = 'total' AND l.price_npr IS NOT NULL AND l.price_npr <= ?")
+        elif purpose == "rent":
+            clauses.append("l.price_basis = 'monthly' AND l.price_npr IS NOT NULL AND l.price_npr <= ?")
+        else:
+            clauses.append("l.price_basis IN ('total', 'monthly') AND l.price_npr IS NOT NULL AND l.price_npr <= ?")
         parameters.append(max_price)
     where = " AND ".join(clauses)
     with connect(path) as connection:
