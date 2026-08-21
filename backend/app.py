@@ -297,7 +297,7 @@ def stylesheet() -> FileResponse:
 
 @app.get("/script.js")
 def javascript() -> FileResponse:
-    return FileResponse(ROOT_DIR / "script.js", media_type="text/javascript")
+    return FileResponse(ROOT_DIR / "script.js", media_type="text/javascript", headers=NO_STORE_HEADERS)
 
 
 @app.get("/market.css")

@@ -182,14 +182,26 @@ try {
   assert(landState.unitRateVisible, "Source-labelled land unit rates are not displayed with their basis.");
 
   const mapFocusState = await evaluate(`(() => {
-    document.querySelector('.property-card [data-map-property]').click();
+    const frame = document.querySelector('[data-map-frame]');
+    const initialSource = frame.src;
+    const buttons = [...document.querySelectorAll('.property-card [data-map-property]')];
+    const target = buttons[1] || buttons[0];
+    target.click();
     return {
       focused: document.activeElement.matches('[data-map-title]'),
-      title: document.querySelector('[data-map-title]').textContent
+      title: document.querySelector('[data-map-title]').textContent,
+      sourceChanged: frame.src !== initialSource,
+      selectedProperty: document.querySelector('[data-listing-map]').dataset.selectedProperty,
+      expectedProperty: target.dataset.mapProperty
     };
   })()`);
   assert(mapFocusState.focused, "Map selection did not move focus to the updated map heading.");
   assert(mapFocusState.title.length > 4, "Map selection did not update the map heading.");
+  assert(mapFocusState.sourceChanged, "Map selection did not load a different map location.");
+  assert(
+    mapFocusState.selectedProperty === mapFocusState.expectedProperty,
+    "Map selection does not match the clicked property.",
+  );
 
   if (captureSelector) {
     await evaluate(`document.querySelector(${JSON.stringify(captureSelector)})?.scrollIntoView({ block: 'start' })`);

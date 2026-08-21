@@ -360,9 +360,36 @@ function hasMapLocation(property) {
   return hasMapPoint(property) || Boolean(property.mapQuery.trim());
 }
 
-function googleMapsEmbedURL(property) {
-  const [latitude, longitude] = hasMapPoint(property) ? [property.latitude, property.longitude] : cityCentroids[property.city] || cityCentroids.Nepal;
-  const span = property.locationPrecision === "exact" ? 0.012 : hasMapPoint(property) ? 0.04 : 0.35;
+function stableMapHash(value) {
+  let hash = 2166136261;
+  for (const character of value) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function mapDisplayPoint(property) {
+  const [latitude, longitude] = hasMapPoint(property)
+    ? [property.latitude, property.longitude]
+    : cityCentroids[property.city] || cityCentroids.Nepal;
+  if (["exact", "source"].includes(property.locationPrecision)) return [latitude, longitude];
+
+  // Listings commonly share a locality or city centroid. A stable, bounded
+  // offset makes selection changes visible without implying an exact address.
+  const radiusByPrecision = { locality: 0.006, city: 0.022, district: 0.07, unknown: 0.035 };
+  const maximumRadius = radiusByPrecision[property.locationPrecision] || radiusByPrecision.unknown;
+  const hash = stableMapHash(property.id);
+  const angle = ((hash % 3600) / 3600) * Math.PI * 2;
+  const distance = maximumRadius * (0.35 + (((hash >>> 12) % 650) / 1000));
+  const longitudeScale = Math.max(Math.cos((latitude * Math.PI) / 180), 0.4);
+  return [latitude + Math.cos(angle) * distance, longitude + (Math.sin(angle) * distance) / longitudeScale];
+}
+
+function openStreetMapEmbedURL(property) {
+  const [latitude, longitude] = mapDisplayPoint(property);
+  const spanByPrecision = { exact: 0.012, source: 0.02, locality: 0.04, city: 0.12, district: 0.35, unknown: 0.35 };
+  const span = spanByPrecision[property.locationPrecision] || 0.35;
   const bounds = [longitude - span, latitude - span, longitude + span, latitude + span].join(",");
   return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bounds)}&layer=mapnik&marker=${encodeURIComponent(`${latitude},${longitude}`)}`;
 }
@@ -386,7 +413,13 @@ function updateMap(property, { scroll = false } = {}) {
   mapPanel.querySelector("[data-map-results]").href = `/properties?${new URLSearchParams({ purpose: property.purpose, city: property.city, type: property.type, listing: property.id, view: "map" })}`;
   mapPanel.querySelector("[data-map-source]").href = property.sourceUrl;
   const frame = mapPanel.querySelector("[data-map-frame]");
-  if (changed || !frame.src) frame.src = googleMapsEmbedURL(property);
+  const nextSource = openStreetMapEmbedURL(property);
+  mapPanel.dataset.selectedProperty = property.id;
+  if (changed || frame.getAttribute("src") !== nextSource) {
+    frame.setAttribute("aria-busy", "true");
+    frame.addEventListener("load", () => frame.removeAttribute("aria-busy"), { once: true });
+    frame.src = nextSource;
+  }
   frame.title = `${mapPrecisionLabel(property)} for ${property.title}`;
   if (scroll) {
     mapPanel.querySelector("[data-map-title]").focus({ preventScroll: true });
