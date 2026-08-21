@@ -1,10 +1,10 @@
 .nei-assistant-launcher {
   position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 300; display: flex; align-items: center; gap: .65rem;
   min-height: 3.4rem; padding: 0 1.15rem; border: 0; border-radius: 99px; background: #363c46; color: #fff;
-  box-shadow: 0 14px 40px rgba(36,43,50,.28); font: 700 .7rem/1 "Helvetica Neue", "Arial Nova", Arial, sans-serif; letter-spacing: .04em;
+  box-shadow: 0 14px 40px rgba(36,43,50,.28); font: 700 .7rem/1 var(--font-sans, Inter, "Helvetica Neue", Arial, sans-serif); letter-spacing: .04em;
 }
 .nei-assistant-launcher i { width: .55rem; height: .55rem; border-radius: 50%; background: #71c6a6; box-shadow: 0 0 0 .25rem rgba(113,198,166,.16); }
-.nei-assistant-panel { position: fixed; right: 1.25rem; bottom: 5.35rem; z-index: 301; display: grid; grid-template-rows: auto minmax(12rem,1fr) auto; width: min(25rem, calc(100vw - 2rem)); height: min(39rem, calc(100dvh - 7rem)); overflow: hidden; border: 1px solid rgba(54,60,70,.18); border-radius: 1.6rem; background: #f7f6f2; color: #363c46; box-shadow: 0 24px 80px rgba(36,43,50,.25); font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif; }
+.nei-assistant-panel { position: fixed; right: 1.25rem; bottom: 5.35rem; z-index: 301; display: grid; grid-template-rows: auto minmax(12rem,1fr) auto; width: min(25rem, calc(100vw - 2rem)); height: min(39rem, calc(100dvh - 7rem)); overflow: hidden; border: 1px solid rgba(54,60,70,.18); border-radius: 1.6rem; background: #f7f6f2; color: #363c46; box-shadow: 0 24px 80px rgba(36,43,50,.25); font-family: var(--font-sans, Inter, "Helvetica Neue", Arial, sans-serif); }
 .nei-assistant-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; background: #363c46; color: #fff; }
 .nei-assistant-head div { display: grid; gap: .2rem; }
 .nei-assistant-head strong { font-size: .8rem; }
@@ -21,11 +21,11 @@
 .nei-recommendation:hover { border-color: #956c5b; }
 .nei-recommendation strong { overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
 .nei-recommendation span { color: #5d6472; font-size: .6rem; }
-.nei-recommendation em { color: #956c5b; font: 700 .6rem/1.3 "Helvetica Neue", Arial, sans-serif; }
+.nei-recommendation em { color: #956c5b; font: 700 .6rem/1.3 var(--font-sans, Inter, "Helvetica Neue", Arial, sans-serif); }
 .nei-assistant-examples { display: flex; gap: .35rem; overflow-x: auto; margin-bottom: .75rem; padding-bottom: .2rem; }
 .nei-assistant-examples button { flex: none; padding: .5rem .65rem; border: 1px solid rgba(54,60,70,.15); border-radius: 99px; background: #fff; color: #5d6472; font-size: .58rem; }
 .nei-assistant-form { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .45rem; padding: .75rem; border-top: 1px solid rgba(54,60,70,.15); background: #fff; }
-.nei-assistant-form input { min-width: 0; padding: .75rem .85rem; border: 1px solid rgba(54,60,70,.18); border-radius: 99px; background: #f7f6f2; color: inherit; font: .72rem "Helvetica Neue", Arial, sans-serif; }
+.nei-assistant-form input { min-width: 0; padding: .75rem .85rem; border: 1px solid rgba(54,60,70,.18); border-radius: 99px; background: #f7f6f2; color: inherit; font: .72rem var(--font-sans, Inter, "Helvetica Neue", Arial, sans-serif); }
 .nei-assistant-form button { min-width: 3rem; padding: 0 .8rem; border: 0; border-radius: 99px; background: #cfb6a8; color: #363c46; font-size: 1rem; }
 .nei-assistant-form button:disabled { opacity: .55; }
 @media (max-width: 520px) { .nei-assistant-launcher { right: .75rem; bottom: .75rem; } .nei-assistant-panel { right: .5rem; bottom: .5rem; width: calc(100vw - 1rem); height: calc(100dvh - 1rem); border-radius: 1.2rem; } }

@@ -18,7 +18,7 @@
   --gutter: clamp(1rem, 2.4vw, 2.5rem);
   color: var(--ink);
   background: var(--paper);
-  font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif;
+  font-family: var(--font-sans, Inter, "Helvetica Neue", "Arial Nova", Arial, sans-serif);
   font-synthesis: none;
   letter-spacing: 0;
 }
@@ -89,100 +89,17 @@ img {
   transform: translateY(0);
 }
 
-.terminal-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: grid;
-  grid-template-columns: minmax(14rem, 1fr) auto minmax(14rem, 1fr);
-  align-items: center;
-  min-height: var(--header-height);
-  padding: 0 var(--gutter);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  background: var(--ink);
-  color: var(--white);
+.market-shell {
+  min-height: calc(100vh - 2rem);
+  background: var(--paper);
 }
 
-.market-brand {
-  display: inline-flex;
-  align-items: center;
-  justify-self: start;
-  gap: 0.75rem;
-  color: inherit;
-  text-decoration: none;
+.market-shell .site-header {
+  z-index: 120;
 }
 
-.brand-mark {
-  position: relative;
-  display: block;
-  width: 2.1rem;
-  height: 2.1rem;
-}
-
-.brand-mark span {
-  position: absolute;
-  bottom: 0;
-  width: 0.5rem;
-  background: var(--mint);
-}
-
-.brand-mark span:nth-child(1) {
-  left: 0;
-  height: 1rem;
-}
-
-.brand-mark span:nth-child(2) {
-  left: 0.78rem;
-  height: 1.55rem;
-}
-
-.brand-mark span:nth-child(3) {
-  left: 1.56rem;
-  height: 2.1rem;
-  background: var(--sand);
-}
-
-.brand-copy {
-  display: grid;
-  gap: 0.15rem;
-}
-
-.brand-copy strong {
-  font-size: 0.82rem;
-  text-transform: uppercase;
-}
-
-.brand-copy small {
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 0.68rem;
-}
-
-.terminal-nav {
-  display: flex;
-  align-self: stretch;
-  justify-content: center;
-}
-
-.terminal-nav a {
-  display: inline-grid;
-  place-items: center;
-  min-width: 6.25rem;
-  padding: 0 1rem;
-  border-inline-start: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-decoration: none;
-  text-transform: uppercase;
-}
-
-.terminal-nav a:last-child {
-  border-inline-end: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.terminal-nav a[aria-current="page"] {
-  background: var(--sand);
-  color: var(--ink);
+.market-shell .desktop-nav a[aria-current="page"]::after {
+  transform: scaleX(1);
 }
 
 .feed-state {
@@ -190,7 +107,10 @@ img {
   align-items: center;
   justify-self: end;
   gap: 0.55rem;
-  color: rgba(255, 255, 255, 0.72);
+  padding: 0.55rem 0.75rem;
+  border-radius: 99px;
+  background: var(--mint);
+  color: var(--slate);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
 }
@@ -262,6 +182,7 @@ img {
   padding: 0.9rem 1rem;
   border-left: 3px solid var(--sand);
   background: var(--white);
+  border-radius: 0.9rem;
   box-shadow: 0 8px 26px rgba(42, 48, 57, 0.06);
 }
 
@@ -288,7 +209,10 @@ img {
   grid-template-columns: auto minmax(12rem, 1.5fr) repeat(4, minmax(8.5rem, 1fr)) auto;
   min-height: 4.4rem;
   border: 1px solid var(--line-strong);
+  border-radius: 1rem;
   background: var(--white);
+  box-shadow: 0 12px 32px rgba(54, 60, 70, 0.06);
+  overflow: hidden;
 }
 
 .segmented-control {
@@ -308,6 +232,7 @@ img {
 
 .segmented-control button.is-active,
 .horizon-control button.is-active {
+  border-radius: 0.65rem;
   background: var(--ink);
   color: var(--white);
 }
@@ -358,6 +283,11 @@ img {
   font-size: 1.15rem;
 }
 
+.market-clock .feed-state {
+  justify-self: start;
+  margin-top: 0.7rem;
+}
+
 .reset-button:hover {
   background: var(--sand);
 }
@@ -366,9 +296,10 @@ img {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 0.8rem;
-  border-top: 1px solid var(--line-strong);
-  border-bottom: 1px solid var(--line-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 1rem;
   background: rgba(255, 255, 255, 0.58);
+  overflow: hidden;
 }
 
 .ticker-item {
@@ -391,9 +322,8 @@ img {
 .ticker-item strong {
   margin-top: 0.25rem;
   overflow: hidden;
-  font-family: Georgia, "Times New Roman", serif;
   font-size: 1.55rem;
-  font-weight: 400;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -423,7 +353,9 @@ img {
 .inventory-panel,
 .analytics-panel {
   border: 1px solid var(--line-strong);
+  border-radius: 1rem;
   background: var(--white);
+  overflow: hidden;
 }
 
 .panel-header,
@@ -796,8 +728,8 @@ img {
 
 .scenario-signal strong {
   margin-top: 0.15rem;
-  font-family: Georgia, "Times New Roman", serif;
   font-size: 1.55rem;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -896,7 +828,9 @@ img {
 .comparison-section {
   margin-top: 0.8rem;
   border: 1px solid var(--line-strong);
+  border-radius: 1rem;
   background: var(--white);
+  overflow: hidden;
 }
 
 .comparison-actions {
@@ -911,6 +845,7 @@ img {
   min-height: 2rem;
   padding: 0 0.75rem;
   background: var(--ink);
+  border-radius: 99px;
   color: var(--white);
   font-size: 0.66rem;
   font-weight: 700;
@@ -1061,7 +996,9 @@ img {
   gap: 1px;
   margin-top: 0.8rem;
   border: 1px solid var(--line-strong);
+  border-radius: 1rem;
   background: var(--line);
+  overflow: hidden;
 }
 
 .market-footnotes > div {
@@ -1136,14 +1073,6 @@ img {
 }
 
 @media (max-width: 980px) {
-  .terminal-header {
-    grid-template-columns: 1fr auto;
-  }
-
-  .terminal-nav {
-    display: none;
-  }
-
   .workspace-grid,
   .workspace-grid.has-focus {
     grid-template-columns: 1fr;
@@ -1172,18 +1101,15 @@ img {
     --header-height: 3.8rem;
   }
 
-  .terminal-header {
-    padding-inline: 1rem;
-  }
-
-  .brand-copy small {
-    display: none;
-  }
-
   .feed-state {
     max-width: 9.5rem;
     font-size: 0.64rem;
     text-align: right;
+  }
+
+  .market-clock .feed-state {
+    max-width: none;
+    text-align: left;
   }
 
   .market-main {
@@ -1301,33 +1227,6 @@ img {
 }
 
 @media (max-width: 460px) {
-  .market-brand {
-    gap: 0.5rem;
-  }
-
-  .brand-mark {
-    width: 1.65rem;
-    height: 1.65rem;
-  }
-
-  .brand-mark span {
-    width: 0.38rem;
-  }
-
-  .brand-mark span:nth-child(2) {
-    left: 0.62rem;
-    height: 1.2rem;
-  }
-
-  .brand-mark span:nth-child(3) {
-    left: 1.24rem;
-    height: 1.65rem;
-  }
-
-  .brand-copy strong {
-    font-size: 0.68rem;
-  }
-
   .market-masthead h1 {
     font-size: 2.05rem;
   }

@@ -13,8 +13,9 @@
   --radius-md: 1.25rem;
   --gutter: clamp(1rem, 3vw, 3rem);
   --max-width: 92rem;
+  --font-sans: Inter, "Helvetica Neue", "Arial Nova", Arial, sans-serif;
   color: var(--ink);
-  font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif;
+  font-family: var(--font-sans);
   font-synthesis: none;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
@@ -224,7 +225,8 @@ em {
 }
 
 .desktop-nav a:hover::after,
-.desktop-nav a:focus-visible::after {
+.desktop-nav a:focus-visible::after,
+.desktop-nav a[aria-current="page"]::after {
   transform: scaleX(1);
   transform-origin: left;
 }
@@ -2156,6 +2158,10 @@ button.location-card:hover {
     font-size: clamp(1.55rem, 6vw, 2.5rem);
     font-weight: 500;
     letter-spacing: -0.04em;
+  }
+
+  .mobile-menu a[aria-current="page"] {
+    color: var(--sand-ink);
   }
 
   .hero {

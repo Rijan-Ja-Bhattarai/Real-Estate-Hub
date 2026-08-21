@@ -11,8 +11,8 @@
     <title>Nepal Estate Index — Find your place</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="assets/images/property-image-unavailable.svg" as="image" fetchpriority="high" />
-    <link rel="stylesheet" href="styles.css?v=20260821-map-container-reset" />
-    <link rel="stylesheet" href="assistant.css" />
+    <link rel="stylesheet" href="styles.css?v=20260821-typography" />
+    <link rel="stylesheet" href="assistant.css?v=20260821-typography" />
     <style>
       /* Safety override for browsers that retained the former decorative map pin. */
       .listing-map-frame::before,
@@ -23,6 +23,7 @@
         display: none !important;
       }
     </style>
+    <script src="navigation.js?v=20260821-shared-header" defer></script>
     <script src="script.js?v=20260821-map-selection" defer></script>
     <script src="assistant.js" defer></script>
   </head>
@@ -31,7 +32,7 @@
 
     <div class="page-shell">
       <header class="site-header" data-header>
-        <a class="brand" href="#top" aria-label="Nepal Estate Index, home">
+        <a class="brand" href="/" aria-label="Nepal Estate Index, home">
           <span class="brand-mark" aria-hidden="true">
             <span></span><span></span><span></span>
           </span>
@@ -39,6 +40,7 @@
         </a>
 
         <nav class="desktop-nav" aria-label="Primary navigation">
+          <a href="/" aria-current="page">Home</a>
           <a href="/properties?purpose=buy">Buy</a>
           <a href="/properties?purpose=rent">Rent</a>
           <a href="/properties?view=map">Locations</a>
@@ -69,6 +71,7 @@
           inert
           data-mobile-menu
         >
+          <a href="/" aria-current="page">Home <span aria-hidden="true">↗</span></a>
           <a href="/properties?purpose=buy">Buy properties <span aria-hidden="true">↗</span></a>
           <a href="/properties?purpose=rent">Rent a home <span aria-hidden="true">↗</span></a>
           <a href="/properties?view=map">Browse locations <span aria-hidden="true">↗</span></a>

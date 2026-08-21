@@ -300,6 +300,11 @@ def javascript() -> FileResponse:
     return FileResponse(ROOT_DIR / "script.js", media_type="text/javascript", headers=NO_STORE_HEADERS)
 
 
+@app.get("/navigation.js")
+def navigation_javascript() -> FileResponse:
+    return FileResponse(ROOT_DIR / "navigation.js", media_type="text/javascript", headers=NO_STORE_HEADERS)
+
+
 @app.get("/market.css")
 def market_stylesheet() -> FileResponse:
     return FileResponse(ROOT_DIR / "market.css", media_type="text/css")

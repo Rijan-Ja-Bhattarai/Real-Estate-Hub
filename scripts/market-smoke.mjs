@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const siteUrl = process.env.SITE_URL || "http://127.0.0.1:4173/";
 const marketUrl = new URL("/market", siteUrl).href;
+const captureMarket = process.argv.includes("--capture");
 const chromePath = process.env.CHROME_PATH || "/usr/bin/google-chrome-stable";
 const debugPort = 9600 + (process.pid % 300);
 const profileDir = mkdtempSync(join(tmpdir(), "nei-market-smoke-"));
@@ -173,6 +174,11 @@ try {
     return {
       path: location.pathname,
       title: document.title,
+      sharedHeader: Boolean(document.querySelector('.site-header .brand-name')),
+      homeRoute: document.querySelector('.desktop-nav a')?.getAttribute('href'),
+      navLabels: [...document.querySelectorAll('.desktop-nav a')].map((link) => link.textContent.trim()),
+      typographyConsistent: ['.market-masthead h1', '.ticker-item strong', '.scenario-signal strong', '.inventory-panel']
+        .every((selector) => getComputedStyle(document.querySelector(selector)).fontFamily === getComputedStyle(document.documentElement).fontFamily),
       purpose: document.querySelector('[data-purpose="buy"]').getAttribute('aria-pressed'),
       type: document.querySelector('[data-type]').value,
       rows: rows.length,
@@ -193,6 +199,10 @@ try {
   })()`);
   assert(initial.path === "/market" || initial.path === "/market/", `Expected /market, loaded ${initial.path}.`);
   assert(initial.title.includes("Market Board"), "Market page title is missing.");
+  assert(initial.sharedHeader, "Market is not using the shared site header.");
+  assert(initial.homeRoute === "/", "Market navigation is missing the Home route.");
+  assert(initial.navLabels.join("|") === "Home|Buy|Rent|Locations|Market", "Market navigation differs from the main site.");
+  assert(initial.typographyConsistent, "Market contains a font override that differs from the site typography.");
   assert(initial.purpose === "true", "Buy is not the default listing purpose.");
   assert(initial.type === "House", `Expected House as the default property type, found ${initial.type}.`);
   assert(initial.rows > 2, `Expected at least three default House sale rows, found ${initial.rows}.`);
@@ -206,6 +216,13 @@ try {
   assert(liveFeed || initial.feedState.includes("Deployable snapshot"), `Unknown feed mode: ${initial.feedState}.`);
   assert(new Set(initial.propertyTypes).size === initial.propertyTypes.length && initial.propertyTypes.includes("House"), "The data-derived property options are missing, empty, or duplicated.");
   assert(!initial.bodyOverflow && !initial.documentOverflow, "Desktop viewport has horizontal overflow.");
+
+  if (captureMarket) {
+    const screenshot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+    const capturePath = join(tmpdir(), "nei-market.png");
+    writeFileSync(capturePath, Buffer.from(screenshot.data, "base64"));
+    console.log(`Captured Market to ${capturePath}.`);
+  }
 
   await evaluate(`document.querySelector('[data-focus-property]')?.click()`);
   await waitForHistoryState();
@@ -434,7 +451,10 @@ try {
   });
   await command("Page.reload", { ignoreCache: true });
   await waitForInventory();
-  await evaluate(`document.querySelector('[data-focus-property]')?.click()`);
+  await evaluate(`(() => {
+    document.querySelector('[data-focus-property]')?.click();
+    document.querySelector('[data-toggle-compare][aria-pressed="false"]')?.click();
+  })()`);
   await waitForHistoryState("observed");
   const observedHistory = await evaluate(`({
     eyebrow: document.querySelector('[data-analysis-eyebrow]').textContent.trim(),
@@ -466,13 +486,20 @@ try {
   await command("Page.reload", { ignoreCache: true });
   await waitForInventory();
   await delay(150);
-  const mobile = await evaluate(`({
-    width: window.innerWidth,
-    rows: document.querySelectorAll('.inventory-row').length,
-    bodyOverflow: document.body.scrollWidth > document.body.clientWidth + 2,
-    documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2
-  })`);
+  const mobile = await evaluate(`(() => {
+    const menuButton = document.querySelector('[data-menu-button]');
+    menuButton.click();
+    return {
+      width: window.innerWidth,
+      rows: document.querySelectorAll('.inventory-row').length,
+      menuOpen: document.querySelector('[data-mobile-menu]').classList.contains('is-open'),
+      homeVisible: Boolean(document.querySelector('[data-mobile-menu] a[href="/"]')),
+      bodyOverflow: document.body.scrollWidth > document.body.clientWidth + 2,
+      documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2
+    };
+  })()`);
   assert(mobile.width === 390 && mobile.rows > 0, "Market board did not render at the mobile viewport.");
+  assert(mobile.menuOpen && mobile.homeVisible, "Market mobile navigation is inconsistent or missing Home.");
   assert(!mobile.bodyOverflow && !mobile.documentOverflow, "Mobile viewport has horizontal overflow.");
 
   failures.push(...runtimeErrors);

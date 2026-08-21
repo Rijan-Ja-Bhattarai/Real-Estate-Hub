@@ -6,7 +6,7 @@ const state = {
   properties: [], purpose: params.get("purpose") === "rent" ? "rent" : "buy", city: params.get("city") || "all",
   type: params.get("type") || "all", query: params.get("query") || "", maxPrice: params.get("maxPrice") || "",
   beds: params.get("beds") || "all", minArea: params.get("minArea") || "", areaUnit: params.get("areaUnit") || "aana",
-  sort: params.get("sort") || "newest", selectedId: params.get("listing"), savedOnly: false, saved: readSaved(),
+  sort: params.get("sort") || "newest", selectedId: params.get("listing"), savedOnly: params.get("saved") === "1", saved: readSaved(),
 };
 const form = document.querySelector("[data-browse-filters]");
 const list = document.querySelector("[data-browse-list]");
@@ -109,6 +109,13 @@ function render() {
 function addImageFallbacks(root) { root.querySelectorAll("[data-listing-image]").forEach((image) => image.addEventListener("error", () => { image.src = fallbackImage; }, { once: true })); }
 function syncSavedCount() { document.querySelectorAll("[data-saved-count]").forEach((node) => { node.textContent = state.saved.size; }); }
 function syncPurpose() {
+  if (state.savedOnly) {
+    document.querySelectorAll("[data-purpose]").forEach((button) => { button.classList.remove("is-active"); button.setAttribute("aria-pressed", "false"); });
+    document.querySelectorAll("[data-nav-purpose]").forEach((link) => link.removeAttribute("aria-current"));
+    document.querySelector("[data-browse-title]").innerHTML = "Your saved<br><em>properties.</em>";
+    document.querySelector("[data-browse-intro]").textContent = "Return to the homes and land you shortlisted from anywhere in the index.";
+    return;
+  }
   document.querySelectorAll("[data-purpose]").forEach((button) => { const active = button.dataset.purpose === state.purpose; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); });
   document.querySelectorAll("[data-nav-purpose]").forEach((link) => { if (link.dataset.navPurpose === state.purpose) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current"); });
   document.querySelector("[data-browse-title]").innerHTML = state.purpose === "buy" ? "Homes and land<br><em>for sale.</em>" : "A place that fits<br><em>your next chapter.</em>";
@@ -119,7 +126,7 @@ function syncForm() { for (const name of ["city", "type", "query", "maxPrice", "
 function updateURL() {
   const next = new URLSearchParams({ purpose: state.purpose });
   for (const key of ["city", "type", "query", "maxPrice", "beds", "minArea", "areaUnit", "sort"]) if (state[key] && !["all", "newest", "aana"].includes(state[key])) next.set(key, state[key]);
-  if (state.selectedId) next.set("listing", state.selectedId); if (params.get("assistant") === "1") next.set("assistant", "1"); if (params.get("view") === "map") next.set("view", "map");
+  if (state.selectedId) next.set("listing", state.selectedId); if (state.savedOnly) next.set("saved", "1"); if (params.get("assistant") === "1") next.set("assistant", "1"); if (params.get("view") === "map") next.set("view", "map");
   history.replaceState(null, "", `/properties?${next}`);
 }
 function clearFilters() { Object.assign(state, { city: "all", type: "all", query: "", maxPrice: "", beds: "all", minArea: "", areaUnit: "aana", sort: "newest", savedOnly: false, selectedId: null }); syncForm(); render(); }
@@ -141,7 +148,7 @@ list.addEventListener("click", (event) => {
   const save = event.target.closest("[data-save]"); if (save) { state.saved.has(save.dataset.save) ? state.saved.delete(save.dataset.save) : state.saved.add(save.dataset.save); saveSaved(); render(); return; }
   const target = event.target.closest("[data-focus], [data-map]"); if (!target) return; const id = target.dataset.focus || target.dataset.map; const item = state.properties.find((property) => property.id === id); if (item) renderSelected(item, { scroll: Boolean(target.dataset.map) });
 });
-document.querySelector("[data-browse-saved]").addEventListener("click", () => { state.savedOnly = !state.savedOnly; state.selectedId = null; render(); });
+document.querySelectorAll("[data-browse-saved]").forEach((button) => button.addEventListener("click", () => { state.savedOnly = !state.savedOnly; state.selectedId = null; syncPurpose(); render(); }));
 document.querySelector("[data-dismiss-arrival]").addEventListener("click", () => { document.querySelector("[data-assistant-arrival]").hidden = true; });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 

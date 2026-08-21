@@ -8,7 +8,7 @@ await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 
 for (const file of [
-  "index.html", "styles.css", "script.js",
+  "index.html", "styles.css", "script.js", "navigation.js",
   "properties.html", "properties.css", "properties.js",
   "market.html", "market.css", "market.js",
   "assistant.css", "assistant.js",
@@ -49,6 +49,7 @@ const workerAssets = [
   { route: "/properties.html", file: "properties.html", type: "text/html; charset=utf-8", cache: "no-cache" },
   { route: "/styles.css", file: "styles.css", type: "text/css; charset=utf-8", cache: "no-cache" },
   { route: "/script.js", file: "script.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
+  { route: "/navigation.js", file: "navigation.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   { route: "/properties.css", file: "properties.css", type: "text/css; charset=utf-8", cache: "no-cache" },
   { route: "/properties.js", file: "properties.js", type: "text/javascript; charset=utf-8", cache: "no-cache" },
   { route: "/market.css", file: "market.css", type: "text/css; charset=utf-8", cache: "no-cache" },

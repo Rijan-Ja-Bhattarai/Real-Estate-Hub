@@ -1,6 +1,7 @@
 const fallbackImage = "/assets/images/property-image-unavailable.svg";
 const DISTRIBUTION_CHART_HEIGHT = 300;
 const SCENARIO_CHART_HEIGHT = 260;
+const MARKET_FONT_FAMILY = getComputedStyle(document.documentElement).fontFamily || "Inter, Arial, sans-serif";
 
 const state = {
   properties: [],
@@ -741,7 +742,7 @@ function drawEmptyChart(canvas, height, message) {
   context.lineTo(width - 8, height - 22);
   context.stroke();
   context.fillStyle = "#5d6472";
-  context.font = "11px Helvetica, Arial, sans-serif";
+  context.font = `11px ${MARKET_FONT_FAMILY}`;
   context.fillText(message, 14, Math.round(height / 2));
 }
 
@@ -802,7 +803,7 @@ function drawDistribution(property) {
   context.lineTo(medianX, height - pad.bottom);
   context.stroke();
   context.fillStyle = "#286f86";
-  context.font = "bold 10px Helvetica, Arial, sans-serif";
+  context.font = `700 10px ${MARKET_FONT_FAMILY}`;
   context.fillText("PEER MEDIAN", Math.min(width - 82, Math.max(4, medianX - 34)), 11);
 
   const propertyX = pad.left + ((property.price - min) / span) * chartWidth;
@@ -911,7 +912,7 @@ function drawObservedHistory(property, history) {
   });
 
   context.fillStyle = "#5d6472";
-  context.font = "10px Helvetica, Arial, sans-serif";
+  context.font = `10px ${MARKET_FONT_FAMILY}`;
   context.fillText(formatDate(first.date).toUpperCase(), pad.left, height - 9);
   const endLabel = formatDate(latest.date).toUpperCase();
   const endWidth = context.measureText(endLabel).width;
@@ -1022,7 +1023,7 @@ function drawScenario(property, history) {
   });
 
   context.fillStyle = "#5d6472";
-  context.font = "10px Helvetica, Arial, sans-serif";
+  context.font = `10px ${MARKET_FONT_FAMILY}`;
   context.fillText("NOW", pad.left, height - 9);
   context.fillText(`${state.horizon}M`, width - pad.right - 20, height - 9);
 

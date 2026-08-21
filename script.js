@@ -653,7 +653,7 @@ document.querySelectorAll("[data-purpose]").forEach((button) => {
 document.querySelectorAll("[data-purpose-link]").forEach((link) => {
   link.addEventListener("click", () => {
     updatePurpose(link.dataset.purposeLink);
-    closeMenu();
+    document.dispatchEvent(new Event("nei:close-menu"));
   });
 });
 
@@ -748,7 +748,7 @@ document.querySelectorAll("[data-open-saved]").forEach((button) => {
       purposeButton.classList.remove("is-active");
       purposeButton.setAttribute("aria-pressed", "false");
     });
-    closeMenu();
+    document.dispatchEvent(new Event("nei:close-menu"));
     renderProperties();
     document.querySelector("#listings").scrollIntoView({ behavior: preferredScrollBehavior() });
   });
@@ -801,69 +801,6 @@ document.querySelectorAll("[data-accordion] .process-item > button").forEach((bu
       answer.inert = false;
     }
   });
-});
-
-const menuButton = document.querySelector("[data-menu-button]");
-const mobileMenu = document.querySelector("[data-mobile-menu]");
-const menuBackgroundNodes = document.querySelectorAll(
-  "main, .site-footer, .site-header > .brand, .site-header > .desktop-nav, .site-header .saved-button",
-);
-
-function setMenuBackgroundInert(inert) {
-  menuBackgroundNodes.forEach((node) => { node.inert = inert; });
-}
-
-function closeMenu({ restoreFocus = false } = {}) {
-  mobileMenu.classList.remove("is-open");
-  mobileMenu.setAttribute("aria-hidden", "true");
-  mobileMenu.inert = true;
-  setMenuBackgroundInert(false);
-  menuButton.setAttribute("aria-expanded", "false");
-  menuButton.setAttribute("aria-label", "Open menu");
-  document.body.classList.remove("menu-open");
-  if (restoreFocus) menuButton.focus();
-}
-
-menuButton.addEventListener("click", () => {
-  const open = menuButton.getAttribute("aria-expanded") === "true";
-  if (open) closeMenu();
-  else {
-    mobileMenu.classList.add("is-open");
-    mobileMenu.setAttribute("aria-hidden", "false");
-    mobileMenu.inert = false;
-    setMenuBackgroundInert(true);
-    menuButton.setAttribute("aria-expanded", "true");
-    menuButton.setAttribute("aria-label", "Close menu");
-    document.body.classList.add("menu-open");
-    mobileMenu.querySelector("a, button").focus();
-  }
-});
-
-mobileMenu.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMenu));
-window.addEventListener("resize", () => {
-  if (window.innerWidth > 820) closeMenu();
-});
-
-window.addEventListener(
-  "scroll",
-  () => document.querySelector("[data-header]").classList.toggle("is-scrolled", window.scrollY > 20),
-  { passive: true },
-);
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && mobileMenu.classList.contains("is-open")) closeMenu({ restoreFocus: true });
-  if (event.key === "Tab" && mobileMenu.classList.contains("is-open")) {
-    const focusable = [menuButton, ...mobileMenu.querySelectorAll("a, button")];
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
 });
 
 const revealNodes = document.querySelectorAll("[data-reveal]");

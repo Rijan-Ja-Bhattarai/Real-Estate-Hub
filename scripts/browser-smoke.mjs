@@ -152,9 +152,11 @@ try {
     horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
     heroVisible: document.querySelector('#hero-title').getBoundingClientRect().height > 0,
     assistantVisible: Boolean(document.querySelector('[data-nei-assistant]')),
-    buyRoute: document.querySelector('.desktop-nav a')?.getAttribute('href')
+    homeRoute: document.querySelector('.desktop-nav a')?.getAttribute('href'),
+    buyRoute: document.querySelector('.desktop-nav a[href*="purpose=buy"]')?.getAttribute('href')
   })`);
   assert(initial.title.includes("Nepal Estate Index"), "Document title is missing the product name.");
+  assert(initial.homeRoute === "/", "Primary navigation is missing the Home route.");
   assert(initial.cards === 6, `Expected 6 initial sale cards, found ${initial.cards}.`);
   assert(initial.result.includes("indexed") && initial.result.includes("for sale"), "Initial result summary is incorrect.");
   assert(initial.mapVisible, "Approximate listing map is not visible.");

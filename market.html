@@ -11,31 +11,46 @@
     <title>Market Board | Nepal Estate Index</title>
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="/assets/images/property-image-unavailable.svg" as="image" />
-    <link rel="stylesheet" href="/market.css" />
-    <link rel="stylesheet" href="/assistant.css" />
-    <script src="/market.js" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=20260821-typography" />
+    <link rel="stylesheet" href="/market.css?v=20260821-typography" />
+    <link rel="stylesheet" href="/assistant.css?v=20260821-typography" />
+    <script src="/navigation.js?v=20260821-shared-header" defer></script>
+    <script src="/market.js?v=20260821-typography" defer></script>
     <script src="/assistant.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#market-main">Skip to market board</a>
 
-    <header class="terminal-header">
-      <a class="market-brand" href="/" aria-label="Nepal Estate Index, home">
+    <div class="page-shell market-shell">
+    <header class="site-header" data-header>
+      <a class="brand" href="/" aria-label="Nepal Estate Index, home">
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span class="brand-copy"><strong>Nepal Estate Index</strong><small>Market intelligence</small></span>
+        <span class="brand-name">Nepal Estate<br />Index</span>
       </a>
 
-      <nav class="terminal-nav" aria-label="Primary navigation">
+      <nav class="desktop-nav" aria-label="Primary navigation">
+        <a href="/">Home</a>
         <a href="/properties?purpose=buy">Buy</a>
         <a href="/properties?purpose=rent">Rent</a>
         <a href="/properties?view=map">Locations</a>
         <a href="/market" aria-current="page">Market</a>
       </nav>
 
-      <div class="feed-state" data-feed-state role="status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span>Connecting to index</span>
+      <div class="header-actions">
+        <a class="saved-button" href="/properties?saved=1">Saved <span class="saved-count" data-shared-saved-count>0</span></a>
+        <button class="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu" data-menu-button>
+          <span></span><span></span>
+        </button>
       </div>
+
+      <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation" aria-hidden="true" inert data-mobile-menu>
+        <a href="/">Home <span aria-hidden="true">↗</span></a>
+        <a href="/properties?purpose=buy">Buy properties <span aria-hidden="true">↗</span></a>
+        <a href="/properties?purpose=rent">Rent a home <span aria-hidden="true">↗</span></a>
+        <a href="/properties?view=map">Browse locations <span aria-hidden="true">↗</span></a>
+        <a href="/market" aria-current="page">Market <span aria-hidden="true">↗</span></a>
+        <a class="mobile-saved-link" href="/properties?saved=1">Saved properties <span data-shared-saved-count>0</span></a>
+      </nav>
     </header>
 
     <main id="market-main" class="market-main">
@@ -51,6 +66,10 @@
           <span>INDEX AS OF</span>
           <strong data-as-of>Loading</strong>
           <small data-coverage>Checking coverage</small>
+          <div class="feed-state" data-feed-state role="status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>Connecting to index</span>
+          </div>
         </div>
       </section>
 
@@ -254,6 +273,7 @@
         </div>
       </section>
     </main>
+    </div>
 
     <div class="market-toast" data-toast role="status" aria-live="polite"></div>
   </body>
